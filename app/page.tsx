@@ -15,6 +15,10 @@ type MeetingField = keyof Pick<
   SheetMeeting,
   "meetingDate" | "meetingTime" | "touchpointType" | "meetingNotes" | "nextSteps" | "status"
 >;
+type MeetingDraft = Pick<
+  SheetMeeting,
+  "meetingDate" | "meetingTime" | "touchpointType" | "meetingNotes" | "nextSteps" | "status"
+>;
 
 const STORAGE_KEY = "client-meeting-dashboard";
 const DRAFT_STORAGE_KEY = "client-meeting-dashboard-draft";
@@ -283,6 +287,14 @@ export default function Page() {
     startTransition(() => {
       setMeetings((current) =>
         current.map((meeting) => (meeting.id === id ? { ...meeting, [field]: value } : meeting))
+      );
+    });
+  }
+
+  function saveMeeting(id: string, draft: MeetingDraft) {
+    startTransition(() => {
+      setMeetings((current) =>
+        current.map((meeting) => (meeting.id === id ? { ...meeting, ...draft } : meeting))
       );
     });
   }
@@ -643,7 +655,7 @@ export default function Page() {
                       <MeetingEditor
                         key={`account-${meeting.id}`}
                         meeting={meeting}
-                        onChange={updateMeeting}
+                        onSave={saveMeeting}
                         onDelete={handleDelete}
                       />
                     ))
@@ -771,7 +783,7 @@ export default function Page() {
                     <MeetingEditor
                       key={meeting.id}
                       meeting={meeting}
-                      onChange={updateMeeting}
+                      onSave={saveMeeting}
                       onDelete={handleDelete}
                     />
                   ))
@@ -795,7 +807,7 @@ export default function Page() {
                     <MeetingEditor
                       key={`scheduled-${meeting.id}`}
                       meeting={meeting}
-                      onChange={updateMeeting}
+                      onSave={saveMeeting}
                       onDelete={handleDelete}
                     />
                   ))
@@ -845,19 +857,48 @@ function StatCard({ label, value }: { label: string; value: number }) {
 
 function MeetingEditor({
   meeting,
-  onChange,
+  onSave,
   onDelete
 }: {
   meeting: SheetMeeting;
-  onChange: (id: string, field: MeetingField, value: string) => void;
+  onSave: (id: string, draft: MeetingDraft) => void;
   onDelete: (id: string) => void;
 }) {
+  const [draft, setDraft] = useState<MeetingDraft>({
+    meetingDate: meeting.meetingDate,
+    meetingTime: meeting.meetingTime,
+    touchpointType: meeting.touchpointType ?? "Meeting",
+    meetingNotes: meeting.meetingNotes,
+    nextSteps: meeting.nextSteps,
+    status: meeting.status
+  });
+
+  useEffect(() => {
+    setDraft({
+      meetingDate: meeting.meetingDate,
+      meetingTime: meeting.meetingTime,
+      touchpointType: meeting.touchpointType ?? "Meeting",
+      meetingNotes: meeting.meetingNotes,
+      nextSteps: meeting.nextSteps,
+      status: meeting.status
+    });
+  }, [
+    meeting.meetingDate,
+    meeting.meetingNotes,
+    meeting.meetingTime,
+    meeting.nextSteps,
+    meeting.status,
+    meeting.touchpointType
+  ]);
+
   return (
     <article className="meeting-item">
       <div className="meeting-meta">
         <div>
           <p className="meeting-client">{meeting.account}</p>
           <p className="meeting-contact">{meeting.client}</p>
+          <p className="meeting-notes">{meeting.email || "No email"}</p>
+          <p className="meeting-notes">{meeting.phone || "No phone"}</p>
         </div>
         <span className={`meeting-status ${statusClassName(meeting.status)}`}>{meeting.status}</span>
       </div>
@@ -867,17 +908,22 @@ function MeetingEditor({
       <div className="editor-grid">
         <input
           type="date"
-          value={meeting.meetingDate}
-          onChange={(event) => onChange(meeting.id, "meetingDate", event.target.value)}
+          value={draft.meetingDate}
+          onChange={(event) => setDraft((current) => ({ ...current, meetingDate: event.target.value }))}
         />
         <input
           type="time"
-          value={meeting.meetingTime}
-          onChange={(event) => onChange(meeting.id, "meetingTime", event.target.value)}
+          value={draft.meetingTime}
+          onChange={(event) => setDraft((current) => ({ ...current, meetingTime: event.target.value }))}
         />
         <select
-          value={meeting.touchpointType ?? "Meeting"}
-          onChange={(event) => onChange(meeting.id, "touchpointType", event.target.value)}
+          value={draft.touchpointType ?? "Meeting"}
+          onChange={(event) =>
+            setDraft((current) => ({
+              ...current,
+              touchpointType: event.target.value as NonNullable<SheetMeeting["touchpointType"]>
+            }))
+          }
         >
           <option value="Meeting">Meeting</option>
           <option value="Email outreach">Email outreach</option>
@@ -886,8 +932,10 @@ function MeetingEditor({
 
       <div className="editor-grid editor-grid-status">
         <select
-          value={meeting.status}
-          onChange={(event) => onChange(meeting.id, "status", event.target.value)}
+          value={draft.status}
+          onChange={(event) =>
+            setDraft((current) => ({ ...current, status: event.target.value as MeetingStatus }))
+          }
         >
           <option value="Scheduled">Scheduled</option>
           <option value="Completed">Completed</option>
@@ -897,19 +945,21 @@ function MeetingEditor({
 
       <textarea
         rows={2}
-        value={meeting.meetingNotes}
-        onChange={(event) => onChange(meeting.id, "meetingNotes", event.target.value)}
+        value={draft.meetingNotes}
+        onChange={(event) => setDraft((current) => ({ ...current, meetingNotes: event.target.value }))}
         placeholder="Notes"
       />
       <textarea
         rows={2}
-        value={meeting.nextSteps}
-        onChange={(event) => onChange(meeting.id, "nextSteps", event.target.value)}
+        value={draft.nextSteps}
+        onChange={(event) => setDraft((current) => ({ ...current, nextSteps: event.target.value }))}
         placeholder="Next steps"
       />
 
       <div className="item-footer">
-        <span className="meeting-notes">{meeting.email || "No email"}</span>
+        <button className="primary-button" type="button" onClick={() => onSave(meeting.id, draft)}>
+          Save
+        </button>
         <button className="ghost-button" type="button" onClick={() => onDelete(meeting.id)}>
           Delete
         </button>
