@@ -208,7 +208,7 @@ export default function Page() {
   }, [deferredSearch, sortedMeetings]);
 
   const now = new Date();
-  const weekMeetings = filteredMeetings.filter((meeting) => isInCurrentWeek(meeting, now));
+  const weekMeetings = filteredMeetings.filter((meeting) => isInNextSevenDays(meeting, now));
   const activeMeetings = weekMeetings.filter((meeting) => !isArchivedMeeting(meeting, now));
   const archivedMeetings = [...filteredMeetings]
     .filter((meeting) => isArchivedMeeting(meeting, now))
@@ -228,7 +228,7 @@ export default function Page() {
   const scheduledMeetings = useMemo(
     () =>
       sortedMeetings.filter(
-        (meeting) => getMeetingDate(meeting) >= now && meeting.status === "Scheduled"
+        (meeting) => isInNextSevenDays(meeting, now) && meeting.status === "Scheduled"
       ),
     [now, sortedMeetings]
   );
@@ -773,7 +773,7 @@ export default function Page() {
               <div className="card-heading">
                 <div>
                   <p className="section-kicker">Active</p>
-                  <h2>This week</h2>
+                  <h2>Next 7 days</h2>
                 </div>
               </div>
 
@@ -788,7 +788,7 @@ export default function Page() {
                     />
                   ))
                 ) : (
-                  <div className="empty-state">No meetings scheduled for this week.</div>
+                  <div className="empty-state">No meetings scheduled in the next 7 days.</div>
                 )}
               </div>
             </article>
@@ -1043,16 +1043,11 @@ function isArchivedMeeting(meeting: SheetMeeting, now: Date) {
   return getMeetingDate(meeting) < now && meeting.status !== "Needs follow-up";
 }
 
-function isInCurrentWeek(meeting: SheetMeeting, now: Date) {
+function isInNextSevenDays(meeting: SheetMeeting, now: Date) {
   const start = new Date(now);
-  const day = start.getDay();
-  const diffToMonday = (day + 6) % 7;
   start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - diffToMonday);
-
   const end = new Date(start);
-  end.setDate(start.getDate() + 7);
-
+  end.setDate(end.getDate() + 7);
   const meetingDate = getMeetingDate(meeting);
   return meetingDate >= start && meetingDate < end;
 }
