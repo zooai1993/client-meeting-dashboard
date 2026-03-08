@@ -172,6 +172,32 @@ h2 {
   background: var(--panel-soft);
 }
 
+.account-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  list-style: none;
+}
+
+.account-summary::-webkit-details-marker {
+  display: none;
+}
+
+.account-summary::after {
+  content: "+";
+  color: var(--muted);
+  font-size: 1.2rem;
+}
+
+.account-card[open] .account-summary::after {
+  content: "-";
+}
+
+.account-card .lead-list {
+  margin-top: 10px;
+}
+
 .lead-row {
   display: flex;
   justify-content: space-between;

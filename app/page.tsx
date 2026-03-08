@@ -17,6 +17,7 @@ const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 const defaultForm = {
   account: "",
   client: "",
+  role: "",
   email: "",
   meetingDate: "",
   meetingTime: "",
@@ -136,7 +137,8 @@ export default function Page() {
   }, [deferredSearch, sortedMeetings]);
 
   const now = new Date();
-  const activeMeetings = filteredMeetings.filter((meeting) => !isArchivedMeeting(meeting, now));
+  const weekMeetings = filteredMeetings.filter((meeting) => isInCurrentWeek(meeting, now));
+  const activeMeetings = weekMeetings.filter((meeting) => !isArchivedMeeting(meeting, now));
   const archivedMeetings = [...filteredMeetings]
     .filter((meeting) => isArchivedMeeting(meeting, now))
     .sort((a, b) => getMeetingDate(b).getTime() - getMeetingDate(a).getTime());
@@ -180,7 +182,7 @@ export default function Page() {
       id: createId(form.account, form.client),
       account: form.account.trim(),
       client: form.client.trim(),
-      role: "",
+      role: form.role.trim(),
       email: form.email.trim(),
       phone: "",
       meetingDate: form.meetingDate,
@@ -342,6 +344,11 @@ export default function Page() {
                 placeholder="Client"
               />
               <input
+                value={form.role}
+                onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
+                placeholder="Title"
+              />
+              <input
                 value={form.email}
                 onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
                 placeholder="Email"
@@ -396,7 +403,7 @@ export default function Page() {
               <div className="card-heading">
                 <div>
                   <p className="section-kicker">Active</p>
-                  <h2>Upcoming and follow-up meetings</h2>
+                  <h2>This week</h2>
                 </div>
               </div>
 
@@ -411,7 +418,7 @@ export default function Page() {
                     />
                   ))
                 ) : (
-                  <div className="empty-state">No active meetings found.</div>
+                  <div className="empty-state">No meetings scheduled for this week.</div>
                 )}
               </div>
             </article>
@@ -589,13 +596,13 @@ function AccountLeadCard({
   };
 }) {
   return (
-    <article className="account-card">
-      <div className="meeting-meta">
+    <details className="account-card">
+      <summary className="account-summary">
         <div>
           <p className="meeting-client">{account.account}</p>
           <p className="meeting-notes">{account.leadCount} leads tracked</p>
         </div>
-      </div>
+      </summary>
 
       <div className="lead-list">
         {account.leads.length ? (
@@ -604,7 +611,10 @@ function AccountLeadCard({
               <div>
                 <p className="lead-name">{lead.client}</p>
                 <p className="meeting-notes">
-                  {[lead.role, lead.email].filter(Boolean).join(" • ") || "No role or email"}
+                  {lead.role ? `Title: ${lead.role}` : "Title: Not added"}
+                </p>
+                <p className="meeting-notes">
+                  {lead.email || "No email"}
                 </p>
                 <p className="meeting-notes">
                   Latest touchpoint: {lead.latestTouchpointType} on {lead.latestTouchpointDate}
@@ -620,7 +630,7 @@ function AccountLeadCard({
           <div className="empty-state">No leads added yet.</div>
         )}
       </div>
-    </article>
+    </details>
   );
 }
 
@@ -673,6 +683,20 @@ function statusClassName(status: MeetingStatus) {
 
 function isArchivedMeeting(meeting: SheetMeeting, now: Date) {
   return getMeetingDate(meeting) < now && meeting.status !== "Needs follow-up";
+}
+
+function isInCurrentWeek(meeting: SheetMeeting, now: Date) {
+  const start = new Date(now);
+  const day = start.getDay();
+  const diffToMonday = (day + 6) % 7;
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - diffToMonday);
+
+  const end = new Date(start);
+  end.setDate(start.getDate() + 7);
+
+  const meetingDate = getMeetingDate(meeting);
+  return meetingDate >= start && meetingDate < end;
 }
 
 function hasUpcomingFollowUp(meeting: SheetMeeting, meetings: SheetMeeting[], now: Date) {
