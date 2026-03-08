@@ -7,6 +7,7 @@ export type SheetMeeting = {
   phone: string;
   meetingDate: string;
   meetingTime: string;
+  touchpointType?: "Meeting" | "Email outreach";
   meetingNotes: string;
   nextSteps: string;
   status: "Scheduled" | "Completed" | "Needs follow-up";
@@ -25,6 +26,7 @@ export const sheetSeedData: SheetMeeting[] = [
     phone: "908-499-1298",
     meetingDate: "2026-03-09",
     meetingTime: "09:00",
+    touchpointType: "Meeting",
     meetingNotes: "",
     nextSteps: "",
     status: "Scheduled",
@@ -39,6 +41,7 @@ export const sheetSeedData: SheetMeeting[] = [
     phone: "",
     meetingDate: "2026-03-09",
     meetingTime: "09:00",
+    touchpointType: "Meeting",
     meetingNotes: "",
     nextSteps: "",
     status: "Scheduled",
@@ -53,6 +56,7 @@ export const sheetSeedData: SheetMeeting[] = [
     phone: "973-723-8058",
     meetingDate: "2026-03-27",
     meetingTime: "09:00",
+    touchpointType: "Meeting",
     meetingNotes: "CEO & CTO Meeting",
     nextSteps: "",
     status: "Scheduled",
@@ -67,6 +71,7 @@ export const sheetSeedData: SheetMeeting[] = [
     phone: "720-482-7127",
     meetingDate: "2026-03-12",
     meetingTime: "09:00",
+    touchpointType: "Meeting",
     meetingNotes: "Intro to CTO",
     nextSteps: "",
     status: "Scheduled",
@@ -81,6 +86,7 @@ export const sheetSeedData: SheetMeeting[] = [
     phone: "",
     meetingDate: "2026-03-13",
     meetingTime: "09:00",
+    touchpointType: "Meeting",
     meetingNotes: "",
     nextSteps: "",
     status: "Scheduled",
@@ -95,6 +101,7 @@ export const sheetSeedData: SheetMeeting[] = [
     phone: "410-585-2089",
     meetingDate: "2026-03-09",
     meetingTime: "09:00",
+    touchpointType: "Meeting",
     meetingNotes: "",
     nextSteps: "",
     status: "Scheduled",
@@ -109,6 +116,7 @@ export const sheetSeedData: SheetMeeting[] = [
     phone: "7082252350",
     meetingDate: "2026-03-12",
     meetingTime: "09:00",
+    touchpointType: "Meeting",
     meetingNotes: "",
     nextSteps: "",
     status: "Scheduled",
@@ -123,6 +131,7 @@ export const sheetSeedData: SheetMeeting[] = [
     phone: "309-643-2877",
     meetingDate: "2026-03-10",
     meetingTime: "09:00",
+    touchpointType: "Email outreach",
     meetingNotes: "Chicago City Dinner Invite Sent",
     nextSteps: "",
     status: "Scheduled",

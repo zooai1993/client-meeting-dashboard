@@ -2,12 +2,13 @@
 
 import Script from "next/script";
 import { FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { masterAccounts } from "../lib/account-list";
 import { SheetMeeting, sheetSeedData } from "../lib/sheet-data";
 
 type MeetingStatus = SheetMeeting["status"];
 type MeetingField = keyof Pick<
   SheetMeeting,
-  "meetingDate" | "meetingTime" | "meetingNotes" | "nextSteps" | "status"
+  "meetingDate" | "meetingTime" | "touchpointType" | "meetingNotes" | "nextSteps" | "status"
 >;
 
 const STORAGE_KEY = "client-meeting-dashboard";
@@ -19,6 +20,7 @@ const defaultForm = {
   email: "",
   meetingDate: "",
   meetingTime: "",
+  touchpointType: "Meeting" as NonNullable<SheetMeeting["touchpointType"]>,
   meetingNotes: ""
 };
 
@@ -134,9 +136,14 @@ export default function Page() {
   }, [deferredSearch, sortedMeetings]);
 
   const now = new Date();
-  const scheduledMeetings = filteredMeetings.filter((meeting) => meeting.status === "Scheduled");
-  const upcomingCount = filteredMeetings.filter((meeting) => getMeetingDate(meeting) >= now).length;
-  const followUpCount = filteredMeetings.filter((meeting) => meeting.status === "Needs follow-up").length;
+  const activeMeetings = filteredMeetings.filter((meeting) => !isArchivedMeeting(meeting, now));
+  const archivedMeetings = [...filteredMeetings]
+    .filter((meeting) => isArchivedMeeting(meeting, now))
+    .sort((a, b) => getMeetingDate(b).getTime() - getMeetingDate(a).getTime());
+  const accountLeads = useMemo(() => buildAccountLeads(meetings, masterAccounts), [meetings]);
+  const upcomingCount = activeMeetings.filter((meeting) => getMeetingDate(meeting) >= now).length;
+  const archivedCount = archivedMeetings.length;
+  const followUpCount = activeMeetings.filter((meeting) => meeting.status === "Needs follow-up").length;
 
   function initializeGoogleClient() {
     if (!googleClientId || !window.google) {
@@ -178,6 +185,7 @@ export default function Page() {
       phone: "",
       meetingDate: form.meetingDate,
       meetingTime: form.meetingTime,
+      touchpointType: form.touchpointType,
       meetingNotes: form.meetingNotes.trim(),
       nextSteps: "",
       status: "Scheduled",
@@ -283,18 +291,14 @@ export default function Page() {
       <main className="page-shell">
         <section className="topbar">
           <div>
-            <p className="eyebrow">Accounts</p>
-            <h1>Meeting Dashboard</h1>
+            <p className="eyebrow">OpenAI Accounts</p>
+            <h1>Meetings</h1>
+            <p className="headline-copy">Active calls stay visible. Past calls archive automatically.</p>
           </div>
           <div className="stat-strip">
-            <div className="mini-stat">
-              <strong>{upcomingCount}</strong>
-              <span>Upcoming</span>
-            </div>
-            <div className="mini-stat">
-              <strong>{followUpCount}</strong>
-              <span>Follow-ups</span>
-            </div>
+            <StatCard label="Upcoming" value={upcomingCount} />
+            <StatCard label="Follow-up" value={followUpCount} />
+            <StatCard label="Archived" value={archivedCount} />
           </div>
         </section>
 
@@ -361,6 +365,18 @@ export default function Page() {
                   }
                 />
               </div>
+              <select
+                value={form.touchpointType}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    touchpointType: event.target.value as NonNullable<SheetMeeting["touchpointType"]>
+                  }))
+                }
+              >
+                <option value="Meeting">Meeting</option>
+                <option value="Email outreach">Email outreach</option>
+              </select>
               <textarea
                 rows={3}
                 value={form.meetingNotes}
@@ -375,32 +391,83 @@ export default function Page() {
             </form>
           </article>
 
-          <article className="card list-card">
-            <div className="card-heading">
-              <div>
-                <p className="section-kicker">Scheduled</p>
-                <h2>Editable meetings</h2>
+          <div className="stack-column">
+            <article className="card list-card">
+              <div className="card-heading">
+                <div>
+                  <p className="section-kicker">Active</p>
+                  <h2>Upcoming and follow-up meetings</h2>
+                </div>
               </div>
-            </div>
 
-            <div className="meeting-list">
-              {scheduledMeetings.length ? (
-                scheduledMeetings.map((meeting) => (
-                  <MeetingEditor
-                    key={meeting.id}
-                    meeting={meeting}
-                    onChange={updateMeeting}
-                    onDelete={handleDelete}
-                  />
-                ))
-              ) : (
-                <div className="empty-state">No scheduled meetings found.</div>
-              )}
-            </div>
-          </article>
+              <div className="meeting-list">
+                {activeMeetings.length ? (
+                  activeMeetings.map((meeting) => (
+                    <MeetingEditor
+                      key={meeting.id}
+                      meeting={meeting}
+                      onChange={updateMeeting}
+                      onDelete={handleDelete}
+                    />
+                  ))
+                ) : (
+                  <div className="empty-state">No active meetings found.</div>
+                )}
+              </div>
+            </article>
+
+            <article className="card list-card">
+              <div className="card-heading">
+                <div>
+                  <p className="section-kicker">Accounts</p>
+                  <h2>All accounts and leads</h2>
+                </div>
+              </div>
+
+              <div className="account-list">
+                {accountLeads.length ? (
+                  accountLeads.map((account) => <AccountLeadCard key={account.account} account={account} />)
+                ) : (
+                  <div className="empty-state">No account leads found.</div>
+                )}
+              </div>
+            </article>
+
+            <article className="card list-card archive-card">
+              <div className="card-heading">
+                <div>
+                  <p className="section-kicker">Archive</p>
+                  <h2>Past meetings</h2>
+                </div>
+              </div>
+
+              <div className="meeting-list">
+                {archivedMeetings.length ? (
+                  archivedMeetings.map((meeting) => (
+                    <ArchivedMeeting
+                      key={meeting.id}
+                      meeting={meeting}
+                      hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
+                    />
+                  ))
+                ) : (
+                  <div className="empty-state">No archived meetings yet.</div>
+                )}
+              </div>
+            </article>
+          </div>
         </section>
       </main>
     </>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="mini-stat">
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </div>
   );
 }
 
@@ -414,7 +481,7 @@ function MeetingEditor({
   onDelete: (id: string) => void;
 }) {
   return (
-    <article className="meeting-item compact-item">
+    <article className="meeting-item">
       <div className="meeting-meta">
         <div>
           <p className="meeting-client">{meeting.account}</p>
@@ -436,6 +503,16 @@ function MeetingEditor({
           value={meeting.meetingTime}
           onChange={(event) => onChange(meeting.id, "meetingTime", event.target.value)}
         />
+        <select
+          value={meeting.touchpointType ?? "Meeting"}
+          onChange={(event) => onChange(meeting.id, "touchpointType", event.target.value)}
+        >
+          <option value="Meeting">Meeting</option>
+          <option value="Email outreach">Email outreach</option>
+        </select>
+      </div>
+
+      <div className="editor-grid editor-grid-status">
         <select
           value={meeting.status}
           onChange={(event) => onChange(meeting.id, "status", event.target.value)}
@@ -464,6 +541,84 @@ function MeetingEditor({
         <button className="ghost-button" type="button" onClick={() => onDelete(meeting.id)}>
           Delete
         </button>
+      </div>
+    </article>
+  );
+}
+
+function ArchivedMeeting({
+  meeting,
+  hasUpcomingFollowUp
+}: {
+  meeting: SheetMeeting;
+  hasUpcomingFollowUp: boolean;
+}) {
+  return (
+    <article className="meeting-item archived-item">
+      <div className="meeting-meta">
+        <div>
+          <p className="meeting-client">{meeting.account}</p>
+          <p className="meeting-contact">{meeting.client}</p>
+        </div>
+        <span className="archive-chip">Archived</span>
+      </div>
+      <p className="meeting-datetime">{formatMeetingDate(meeting)}</p>
+      <p className="meeting-notes">Latest touchpoint: {meeting.touchpointType ?? "Meeting"}</p>
+      <p className="meeting-notes">{meeting.meetingNotes || "No notes."}</p>
+      {hasUpcomingFollowUp ? <p className="follow-up-chip">Follow-up booked</p> : null}
+    </article>
+  );
+}
+
+function AccountLeadCard({
+  account
+}: {
+  account: {
+    account: string;
+    leadCount: number;
+      leads: Array<{
+        key: string;
+        client: string;
+        role: string;
+        email: string;
+        meetingCount: number;
+        latestStatus: MeetingStatus;
+        latestTouchpointType: NonNullable<SheetMeeting["touchpointType"]>;
+        latestTouchpointDate: string;
+      }>;
+  };
+}) {
+  return (
+    <article className="account-card">
+      <div className="meeting-meta">
+        <div>
+          <p className="meeting-client">{account.account}</p>
+          <p className="meeting-notes">{account.leadCount} leads tracked</p>
+        </div>
+      </div>
+
+      <div className="lead-list">
+        {account.leads.length ? (
+          account.leads.map((lead) => (
+            <div key={lead.key} className="lead-row">
+              <div>
+                <p className="lead-name">{lead.client}</p>
+                <p className="meeting-notes">
+                  {[lead.role, lead.email].filter(Boolean).join(" • ") || "No role or email"}
+                </p>
+                <p className="meeting-notes">
+                  Latest touchpoint: {lead.latestTouchpointType} on {lead.latestTouchpointDate}
+                </p>
+              </div>
+              <div className="lead-meta">
+                <span className={`meeting-status ${statusClassName(lead.latestStatus)}`}>{lead.latestStatus}</span>
+                <span className="meeting-notes">{lead.meetingCount} touchpoints</span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="empty-state">No leads added yet.</div>
+        )}
       </div>
     </article>
   );
@@ -514,4 +669,132 @@ function statusClassName(status: MeetingStatus) {
   }
 
   return "status-completed";
+}
+
+function isArchivedMeeting(meeting: SheetMeeting, now: Date) {
+  return getMeetingDate(meeting) < now && meeting.status !== "Needs follow-up";
+}
+
+function hasUpcomingFollowUp(meeting: SheetMeeting, meetings: SheetMeeting[], now: Date) {
+  const key = `${meeting.account}::${meeting.client}`.toLowerCase();
+
+  return meetings.some(
+    (candidate) =>
+      `${candidate.account}::${candidate.client}`.toLowerCase() === key && getMeetingDate(candidate) >= now
+  );
+}
+
+function buildAccountLeads(meetings: SheetMeeting[], allAccounts: readonly string[]) {
+  const accountMap = new Map<
+    string,
+    Map<
+      string,
+      {
+        key: string;
+        client: string;
+        role: string;
+        email: string;
+        meetingCount: number;
+        latestStatus: MeetingStatus;
+        latestTouchpointType: NonNullable<SheetMeeting["touchpointType"]>;
+        latestTouchpointDate: string;
+        latestTimestamp: number;
+      }
+    >
+  >();
+
+  const masterIndex = new Map(allAccounts.map((account) => [normalizeAccountName(account), account]));
+  const aliasMap = new Map<string, string>([
+    ["je dunn", "JE Dunn Construction"],
+    ["vitamin shoppe", "The Vitamin Shoppe"],
+    ["tms", "tms"]
+  ]);
+
+  allAccounts.forEach((account) => {
+    accountMap.set(account, new Map());
+  });
+
+  meetings.forEach((meeting) => {
+    const accountKey = resolveAccountName(meeting.account.trim() || "Unknown account", masterIndex, aliasMap);
+    const leadKey = `${accountKey}::${meeting.client.trim().toLowerCase()}`;
+    const accountLeads = accountMap.get(accountKey) ?? new Map();
+    const existing = accountLeads.get(leadKey);
+    const timestamp = getMeetingDate(meeting).getTime();
+
+    if (!existing) {
+      accountLeads.set(leadKey, {
+        key: leadKey,
+        client: meeting.client,
+        role: meeting.role,
+        email: meeting.email,
+        meetingCount: 1,
+        latestStatus: meeting.status,
+        latestTouchpointType: meeting.touchpointType ?? "Meeting",
+        latestTouchpointDate: formatTouchpointDate(meeting),
+        latestTimestamp: timestamp
+      });
+      accountMap.set(accountKey, accountLeads);
+      return;
+    }
+
+    existing.meetingCount += 1;
+    if (timestamp >= existing.latestTimestamp) {
+      existing.role = meeting.role;
+      existing.email = meeting.email;
+      existing.latestStatus = meeting.status;
+      existing.latestTouchpointType = meeting.touchpointType ?? "Meeting";
+      existing.latestTouchpointDate = formatTouchpointDate(meeting);
+      existing.latestTimestamp = timestamp;
+    }
+  });
+
+  return [...accountMap.entries()]
+    .map(([account, leads]) => ({
+      account,
+      leadCount: leads.size,
+      leads: [...leads.values()].sort((a, b) => a.client.localeCompare(b.client))
+    }))
+    .sort((a, b) => a.account.localeCompare(b.account));
+}
+
+function formatTouchpointDate(meeting: SheetMeeting) {
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  }).format(getMeetingDate(meeting));
+}
+
+function normalizeAccountName(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/^the\s+/, "")
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function resolveAccountName(
+  account: string,
+  masterIndex: Map<string, string>,
+  aliasMap: Map<string, string>
+) {
+  const normalized = normalizeAccountName(account);
+  const aliased = aliasMap.get(normalized);
+  if (aliased) {
+    return aliased;
+  }
+
+  const direct = masterIndex.get(normalized);
+  if (direct) {
+    return direct;
+  }
+
+  for (const [key, value] of masterIndex.entries()) {
+    if (key.includes(normalized) || normalized.includes(key)) {
+      return value;
+    }
+  }
+
+  return account;
 }
