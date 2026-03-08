@@ -640,21 +640,12 @@ export default function Page() {
                   scheduledMeetings
                     .filter((meeting) => meeting.account === selectedAccountDetail.account)
                     .map((meeting) => (
-                      <div key={`account-${meeting.id}`} className="meeting-item compact-readonly">
-                        <div className="meeting-meta">
-                          <div>
-                            <p className="meeting-client">{meeting.client}</p>
-                            <p className="meeting-contact">
-                              {meeting.role || meeting.touchpointType || "Lead"}
-                            </p>
-                          </div>
-                          <span className={`meeting-status ${statusClassName(meeting.status)}`}>
-                            {meeting.status}
-                          </span>
-                        </div>
-                        <p className="meeting-datetime">{formatMeetingDate(meeting)}</p>
-                        <p className="meeting-notes">{meeting.meetingNotes || "No notes."}</p>
-                      </div>
+                      <MeetingEditor
+                        key={`account-${meeting.id}`}
+                        meeting={meeting}
+                        onChange={updateMeeting}
+                        onDelete={handleDelete}
+                      />
                     ))
                 ) : (
                   <div className="empty-state">No upcoming meetings for this account.</div>
@@ -801,19 +792,12 @@ export default function Page() {
               <div className="meeting-list">
                 {scheduledMeetings.length ? (
                   scheduledMeetings.map((meeting) => (
-                    <div key={`scheduled-${meeting.id}`} className="meeting-item compact-readonly">
-                      <div className="meeting-meta">
-                        <div>
-                          <p className="meeting-client">{meeting.account}</p>
-                          <p className="meeting-contact">{meeting.client}</p>
-                        </div>
-                        <span className={`meeting-status ${statusClassName(meeting.status)}`}>
-                          {meeting.status}
-                        </span>
-                      </div>
-                      <p className="meeting-datetime">{formatMeetingDate(meeting)}</p>
-                      <p className="meeting-notes">{meeting.meetingNotes || "No notes."}</p>
-                    </div>
+                    <MeetingEditor
+                      key={`scheduled-${meeting.id}`}
+                      meeting={meeting}
+                      onChange={updateMeeting}
+                      onDelete={handleDelete}
+                    />
                   ))
                 ) : (
                   <div className="empty-state">No scheduled meetings found.</div>
