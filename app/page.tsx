@@ -129,6 +129,7 @@ export default function Page() {
   const [meetings, setMeetings] = useState<SheetMeeting[]>([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(defaultForm);
+  const [selectedAccount, setSelectedAccount] = useState("");
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
@@ -212,9 +213,20 @@ export default function Page() {
     () => buildAccountLeads(meetings, masterAccounts, emailActivity),
     [emailActivity, meetings]
   );
+  const selectedAccountDetail = useMemo(
+    () => accountLeads.find((account) => account.account === selectedAccount) ?? null,
+    [accountLeads, selectedAccount]
+  );
   const selectedAccountLeads = useMemo(
     () => accountLeads.find((account) => account.account === form.account)?.leads ?? [],
     [accountLeads, form.account]
+  );
+  const scheduledMeetings = useMemo(
+    () =>
+      sortedMeetings.filter(
+        (meeting) => getMeetingDate(meeting) >= now && meeting.status === "Scheduled"
+      ),
+    [now, sortedMeetings]
   );
   const upcomingCount = activeMeetings.filter((meeting) => getMeetingDate(meeting) >= now).length;
   const archivedCount = archivedMeetings.length;
@@ -517,10 +529,29 @@ export default function Page() {
             <h1>Meetings</h1>
             <p className="headline-copy">Active calls stay visible. Past calls archive automatically.</p>
           </div>
-          <div className="stat-strip">
-            <StatCard label="Upcoming" value={upcomingCount} />
-            <StatCard label="Follow-up" value={followUpCount} />
-            <StatCard label="Archived" value={archivedCount} />
+          <div className="topbar-side">
+            <div className="account-picker">
+              <label className="section-kicker" htmlFor="account-view">
+                Account
+              </label>
+              <select
+                id="account-view"
+                value={selectedAccount}
+                onChange={(event) => setSelectedAccount(event.target.value)}
+              >
+                <option value="">Select account</option>
+                {accountLeads.map((account) => (
+                  <option key={account.account} value={account.account}>
+                    {account.account}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="stat-strip">
+              <StatCard label="Upcoming" value={upcomingCount} />
+              <StatCard label="Follow-up" value={followUpCount} />
+              <StatCard label="Archived" value={archivedCount} />
+            </div>
           </div>
         </section>
 
@@ -567,6 +598,71 @@ export default function Page() {
             <p className="meeting-notes">No leads need follow-up right now.</p>
           )}
         </section>
+
+        {selectedAccountDetail ? (
+          <section className="card account-focus">
+            <div className="card-heading">
+              <div>
+                <p className="section-kicker">Account view</p>
+                <h2>{selectedAccountDetail.account}</h2>
+              </div>
+            </div>
+            <div className="account-focus-grid">
+              <div className="lead-list">
+                {selectedAccountDetail.leads.length ? (
+                  selectedAccountDetail.leads.map((lead) => (
+                    <details key={lead.key} className="lead-card">
+                      <summary className="lead-summary">
+                        <div>
+                          <p className="lead-name">{lead.client}</p>
+                          <p className="meeting-notes">{lead.role ? `Title: ${lead.role}` : "Title: Not added"}</p>
+                        </div>
+                        <span className={`meeting-status ${statusClassName(lead.latestStatus)}`}>
+                          {lead.latestStatus}
+                        </span>
+                      </summary>
+                      <div className="lead-details">
+                        <p className="meeting-notes">{lead.email || "No email"}</p>
+                        <p className="meeting-notes">{lead.phone || "No phone"}</p>
+                        <p className="meeting-notes">
+                          Latest touchpoint: {lead.latestTouchpointType} on {lead.latestTouchpointDate}
+                        </p>
+                        <p className="meeting-notes">{lead.meetingCount} touchpoints</p>
+                      </div>
+                    </details>
+                  ))
+                ) : (
+                  <div className="empty-state">No leads added yet.</div>
+                )}
+              </div>
+              <div className="meeting-list">
+                {scheduledMeetings.filter((meeting) => meeting.account === selectedAccountDetail.account).length ? (
+                  scheduledMeetings
+                    .filter((meeting) => meeting.account === selectedAccountDetail.account)
+                    .map((meeting) => (
+                      <div key={`account-${meeting.id}`} className="meeting-item compact-readonly">
+                        <div className="meeting-meta">
+                          <div>
+                            <p className="meeting-client">{meeting.client}</p>
+                            <p className="meeting-contact">
+                              {meeting.role || meeting.touchpointType || "Lead"}
+                            </p>
+                          </div>
+                          <span className={`meeting-status ${statusClassName(meeting.status)}`}>
+                            {meeting.status}
+                          </span>
+                        </div>
+                        <p className="meeting-datetime">{formatMeetingDate(meeting)}</p>
+                        <p className="meeting-notes">{meeting.meetingNotes || "No notes."}</p>
+                      </div>
+                    ))
+                ) : (
+                  <div className="empty-state">No upcoming meetings for this account.</div>
+                )}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="dashboard-grid">
           <article className="card compact-card">
@@ -697,16 +793,30 @@ export default function Page() {
             <article className="card list-card">
               <div className="card-heading">
                 <div>
-                  <p className="section-kicker">Accounts</p>
-                  <h2>All accounts and leads</h2>
+                  <p className="section-kicker">Scheduled</p>
+                  <h2>Upcoming scheduled meetings</h2>
                 </div>
               </div>
 
-              <div className="account-list">
-                {accountLeads.length ? (
-                  accountLeads.map((account) => <AccountLeadCard key={account.account} account={account} />)
+              <div className="meeting-list">
+                {scheduledMeetings.length ? (
+                  scheduledMeetings.map((meeting) => (
+                    <div key={`scheduled-${meeting.id}`} className="meeting-item compact-readonly">
+                      <div className="meeting-meta">
+                        <div>
+                          <p className="meeting-client">{meeting.account}</p>
+                          <p className="meeting-contact">{meeting.client}</p>
+                        </div>
+                        <span className={`meeting-status ${statusClassName(meeting.status)}`}>
+                          {meeting.status}
+                        </span>
+                      </div>
+                      <p className="meeting-datetime">{formatMeetingDate(meeting)}</p>
+                      <p className="meeting-notes">{meeting.meetingNotes || "No notes."}</p>
+                    </div>
+                  ))
                 ) : (
-                  <div className="empty-state">No account leads found.</div>
+                  <div className="empty-state">No scheduled meetings found.</div>
                 )}
               </div>
             </article>
@@ -848,64 +958,6 @@ function ArchivedMeeting({
   );
 }
 
-function AccountLeadCard({
-  account
-}: {
-  account: {
-    account: string;
-    leadCount: number;
-      leads: Array<{
-        key: string;
-        client: string;
-        role: string;
-        email: string;
-        meetingCount: number;
-        latestStatus: MeetingStatus;
-        latestTouchpointType: NonNullable<SheetMeeting["touchpointType"]> | "Gmail";
-        latestTouchpointDate: string;
-        latestTouchpointTimestamp: number;
-      }>;
-  };
-}) {
-  return (
-    <details className="account-card">
-      <summary className="account-summary">
-        <div>
-          <p className="meeting-client">{account.account}</p>
-          <p className="meeting-notes">{account.leadCount} leads tracked</p>
-        </div>
-      </summary>
-
-      <div className="lead-list">
-        {account.leads.length ? (
-          account.leads.map((lead) => (
-            <details key={lead.key} className="lead-card">
-              <summary className="lead-summary">
-                <div>
-                  <p className="lead-name">{lead.client}</p>
-                  <p className="meeting-notes">{lead.role ? `Title: ${lead.role}` : "Title: Not added"}</p>
-                </div>
-                <div className="lead-meta">
-                  <span className={`meeting-status ${statusClassName(lead.latestStatus)}`}>{lead.latestStatus}</span>
-                </div>
-              </summary>
-              <div className="lead-details">
-                <p className="meeting-notes">{lead.email || "No email"}</p>
-                <p className="meeting-notes">
-                  Latest touchpoint: {lead.latestTouchpointType} on {lead.latestTouchpointDate}
-                </p>
-                <p className="meeting-notes">{lead.meetingCount} touchpoints</p>
-              </div>
-            </details>
-          ))
-        ) : (
-          <div className="empty-state">No leads added yet.</div>
-        )}
-      </div>
-    </details>
-  );
-}
-
 function getEventStart(start?: { date?: string; dateTime?: string }) {
   if (start?.dateTime) {
     const date = new Date(start.dateTime);
@@ -994,6 +1046,7 @@ function buildAccountLeads(
         client: string;
         role: string;
         email: string;
+        phone: string;
         meetingCount: number;
         latestStatus: MeetingStatus;
         latestTouchpointType: NonNullable<SheetMeeting["touchpointType"]> | "Gmail";
@@ -1028,6 +1081,7 @@ function buildAccountLeads(
         client: meeting.client,
         role: meeting.role,
         email: meeting.email,
+        phone: meeting.phone,
         meetingCount: 1,
         latestStatus: meeting.status,
         latestTouchpointType: meeting.touchpointType ?? "Meeting",
@@ -1043,6 +1097,7 @@ function buildAccountLeads(
     if (timestamp >= existing.latestTimestamp) {
       existing.role = meeting.role;
       existing.email = meeting.email;
+      existing.phone = meeting.phone;
       existing.latestStatus = meeting.status;
       existing.latestTouchpointType = meeting.touchpointType ?? "Meeting";
       existing.latestTouchpointDate = formatTouchpointDate(meeting);
