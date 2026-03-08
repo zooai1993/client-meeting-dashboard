@@ -81,6 +81,10 @@ button {
   justify-items: end;
 }
 
+.topbar-side .stat-strip {
+  justify-content: flex-end;
+}
+
 .home-button {
   justify-self: start;
   border: 1px solid var(--line);
@@ -93,6 +97,10 @@ button {
 
 .account-picker {
   min-width: 280px;
+}
+
+.import-button {
+  width: 100%;
 }
 
 .eyebrow,
@@ -175,7 +183,7 @@ h2 {
 
 .landing-meta {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 1fr;
   gap: 12px;
   margin-top: 10px;
 }
@@ -192,6 +200,14 @@ h2 {
   margin-top: 6px;
   color: var(--text);
   font-size: 0.98rem;
+}
+
+.quote-author {
+  margin-top: 6px;
+}
+
+.quote-strip-wide {
+  text-align: center;
 }
 
 .countdown-grid {

@@ -26,13 +26,13 @@ const EMAIL_ACTIVITY_STORAGE_KEY = "client-meeting-dashboard-email-activity";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 const DAILY_QUOTES = [
-  "Small follow-ups close big gaps.",
-  "Consistency compounds faster than intensity.",
-  "Every touchpoint is momentum.",
-  "Clarity wins more meetings than volume.",
-  "A clean pipeline makes better decisions.",
-  "The next reply usually starts with the last follow-up.",
-  "Progress is usually one well-timed message away."
+  { quote: "Success is no accident.", author: "Pele" },
+  { quote: "Dreams don’t work unless you do.", author: "John C. Maxwell" },
+  { quote: "Make each day your masterpiece.", author: "John Wooden" },
+  { quote: "Stay hungry, stay foolish.", author: "Steve Jobs" },
+  { quote: "It always seems impossible until it’s done.", author: "Nelson Mandela" },
+  { quote: "I never lose. I either win or learn.", author: "Nelson Mandela" },
+  { quote: "If you can dream it, you can do it.", author: "Walt Disney" }
 ] as const;
 
 const defaultForm = {
@@ -630,6 +630,11 @@ export default function Page() {
                 ))}
               </select>
             </div>
+            {!selectedAccount ? (
+              <button className="ghost-button import-button" type="button" onClick={openImportPicker}>
+                Import CSV
+              </button>
+            ) : null}
             <div className="stat-strip">
               <StatCard label="Upcoming" value={upcomingCount} />
               <StatCard label="Follow-up" value={followUpCount} />
@@ -657,11 +662,6 @@ export default function Page() {
           <button className="ghost-button" type="button" onClick={syncGmail}>
             Sync Email
           </button>
-          {!selectedAccount ? (
-            <button className="ghost-button" type="button" onClick={openImportPicker}>
-              Import CSV
-            </button>
-          ) : null}
         </section>
 
         <p className="status-line">{calendarStatus}</p>
@@ -670,9 +670,10 @@ export default function Page() {
 
         {!selectedAccount ? (
           <section className="landing-meta">
-            <div className="quote-strip">
+            <div className="quote-strip quote-strip-wide">
               <p className="section-kicker">Today</p>
-              <p className="quote-text">{dailyQuote}</p>
+              <p className="quote-text">"{dailyQuote.quote}"</p>
+              <p className="meeting-notes quote-author">{dailyQuote.author}</p>
             </div>
             <div className="countdown-card">
               <p className="section-kicker">Quarter closes</p>
