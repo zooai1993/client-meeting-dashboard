@@ -155,7 +155,7 @@ h2 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto auto;
   gap: 10px;
   margin-top: 14px;
 }
@@ -171,6 +171,47 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 16px;
   background: rgba(17, 21, 19, 0.72);
+}
+
+.landing-meta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.quote-strip,
+.countdown-card {
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(17, 21, 19, 0.72);
+}
+
+.quote-text {
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 0.98rem;
+}
+
+.countdown-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(56px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.countdown-grid strong {
+  display: block;
+  font-size: 1.1rem;
+}
+
+.countdown-grid span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
 .stale-list {
@@ -388,7 +429,8 @@ textarea {
 @media (max-width: 920px) {
   .topbar,
   .dashboard-grid,
-  .account-focus-grid {
+  .account-focus-grid,
+  .landing-meta {
     display: grid;
     grid-template-columns: 1fr;
     align-items: stretch;
@@ -413,7 +455,8 @@ textarea {
 
   .split-fields,
   .editor-grid,
-  .toolbar {
+  .toolbar,
+  .countdown-grid {
     grid-template-columns: 1fr;
   }
 

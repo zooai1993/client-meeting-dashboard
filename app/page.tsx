@@ -1,7 +1,7 @@
 "use client";
 
 import Script from "next/script";
-import { FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { ChangeEvent, FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { masterAccounts } from "../lib/account-list";
 import { SheetMeeting, sheetSeedData } from "../lib/sheet-data";
 
@@ -25,6 +25,15 @@ const DRAFT_STORAGE_KEY = "client-meeting-dashboard-draft";
 const EMAIL_ACTIVITY_STORAGE_KEY = "client-meeting-dashboard-email-activity";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
+const DAILY_QUOTES = [
+  "Small follow-ups close big gaps.",
+  "Consistency compounds faster than intensity.",
+  "Every touchpoint is momentum.",
+  "Clarity wins more meetings than volume.",
+  "A clean pipeline makes better decisions.",
+  "The next reply usually starts with the last follow-up.",
+  "Progress is usually one well-timed message away."
+] as const;
 
 const defaultForm = {
   account: "",
@@ -140,13 +149,16 @@ export default function Page() {
   const [gmailToken, setGmailToken] = useState<string | null>(null);
   const [calendarStatus, setCalendarStatus] = useState("Calendar not connected.");
   const [gmailStatus, setGmailStatus] = useState("Gmail not connected.");
+  const [importStatus, setImportStatus] = useState("");
   const [emailActivity, setEmailActivity] = useState<Record<string, EmailActivity>>({});
+  const [currentTime, setCurrentTime] = useState(() => new Date());
   const tokenClientRef = useRef<{
     requestAccessToken: (options?: { prompt?: string }) => void;
   } | null>(null);
   const gmailTokenClientRef = useRef<{
     requestAccessToken: (options?: { prompt?: string }) => void;
   } | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const deferredSearch = useDeferredValue(search);
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -181,6 +193,14 @@ export default function Page() {
     window.localStorage.setItem(EMAIL_ACTIVITY_STORAGE_KEY, JSON.stringify(emailActivity));
   }, [emailActivity, hasHydrated]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
   const sortedMeetings = useMemo(
     () => [...meetings].sort((a, b) => getMeetingDate(a).getTime() - getMeetingDate(b).getTime()),
     [meetings]
@@ -207,7 +227,7 @@ export default function Page() {
     );
   }, [deferredSearch, sortedMeetings]);
 
-  const now = new Date();
+  const now = currentTime;
   const weekMeetings = filteredMeetings.filter((meeting) => isInNextSevenDays(meeting, now));
   const activeMeetings = weekMeetings.filter((meeting) => !isArchivedMeeting(meeting, now));
   const archivedMeetings = [...filteredMeetings]
@@ -248,6 +268,8 @@ export default function Page() {
         .slice(0, 5),
     [accountLeads, now]
   );
+  const dailyQuote = useMemo(() => getDailyQuote(now), [now]);
+  const quarterCountdown = useMemo(() => getQuarterCountdown(now), [now]);
 
   function initializeGoogleClient() {
     if (!googleClientId || !window.google) {
@@ -527,6 +549,41 @@ export default function Page() {
     });
   }
 
+  function openImportPicker() {
+    importInputRef.current?.click();
+  }
+
+  async function handleImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const text = await file.text();
+    const rows = parseCsv(text);
+    if (!rows.length) {
+      setImportStatus("No rows found in import file.");
+      event.target.value = "";
+      return;
+    }
+
+    const header = rows[0].map((cell) => cell.trim().toLowerCase());
+    const dataRows = rows.slice(1).filter((row) => row.some((cell) => cell.trim()));
+    const imported = dataRows.map((row) => mapImportedRow(row, header)).filter(Boolean) as SheetMeeting[];
+
+    if (!imported.length) {
+      setImportStatus("Import file did not match expected columns.");
+      event.target.value = "";
+      return;
+    }
+
+    startTransition(() => {
+      setMeetings((current) => [...current, ...imported]);
+    });
+    setImportStatus(`Imported ${imported.length} ${imported.length === 1 ? "row" : "rows"}.`);
+    event.target.value = "";
+  }
+
   return (
     <>
       <Script
@@ -535,13 +592,18 @@ export default function Page() {
         onLoad={initializeGoogleClient}
       />
       <main className="page-shell">
+        <input
+          ref={importInputRef}
+          className="sr-only"
+          type="file"
+          accept=".csv,text/csv"
+          onChange={handleImport}
+        />
         <section className="topbar">
           <div className="topbar-main">
-            {selectedAccount ? (
-              <button className="home-button" type="button" onClick={() => setSelectedAccount("")} aria-label="Go home">
-                Home
-              </button>
-            ) : null}
+            <button className="home-button" type="button" onClick={() => setSelectedAccount("")} aria-label="Go home">
+              Home
+            </button>
             <p className="eyebrow">OpenAI Accounts</p>
             <h1>Meetings</h1>
             <p className="headline-copy">
@@ -595,10 +657,46 @@ export default function Page() {
           <button className="ghost-button" type="button" onClick={syncGmail}>
             Sync Email
           </button>
+          {!selectedAccount ? (
+            <button className="ghost-button" type="button" onClick={openImportPicker}>
+              Import CSV
+            </button>
+          ) : null}
         </section>
 
         <p className="status-line">{calendarStatus}</p>
         <p className="status-line">{gmailStatus}</p>
+        {!selectedAccount && importStatus ? <p className="status-line">{importStatus}</p> : null}
+
+        {!selectedAccount ? (
+          <section className="landing-meta">
+            <div className="quote-strip">
+              <p className="section-kicker">Today</p>
+              <p className="quote-text">{dailyQuote}</p>
+            </div>
+            <div className="countdown-card">
+              <p className="section-kicker">Quarter closes</p>
+              <div className="countdown-grid">
+                <div>
+                  <strong>{quarterCountdown.days}</strong>
+                  <span>Days</span>
+                </div>
+                <div>
+                  <strong>{quarterCountdown.hours}</strong>
+                  <span>Hours</span>
+                </div>
+                <div>
+                  <strong>{quarterCountdown.minutes}</strong>
+                  <span>Minutes</span>
+                </div>
+                <div>
+                  <strong>{quarterCountdown.seconds}</strong>
+                  <span>Seconds</span>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         {!selectedAccount ? (
           <section className="compact-alert">
@@ -1167,6 +1265,84 @@ function normalizeAccountName(value: string) {
     .trim();
 }
 
+function parseCsv(text: string) {
+  const rows: string[][] = [];
+  let current = "";
+  let row: string[] = [];
+  let inQuotes = false;
+
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index];
+    const next = text[index + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        index += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(current);
+      current = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") {
+        index += 1;
+      }
+      row.push(current);
+      rows.push(row);
+      row = [];
+      current = "";
+      continue;
+    }
+
+    current += char;
+  }
+
+  if (current.length || row.length) {
+    row.push(current);
+    rows.push(row);
+  }
+
+  return rows;
+}
+
+function mapImportedRow(row: string[], header: string[]) {
+  const get = (...keys: string[]) => {
+    const index = header.findIndex((cell) => keys.includes(cell));
+    return index >= 0 ? row[index]?.trim() ?? "" : "";
+  };
+
+  const account = get("account", "account name");
+  const client = get("client", "client name", "lead", "contact");
+
+  if (!account || !client) {
+    return null;
+  }
+
+  return {
+    id: createId(account, client),
+    account,
+    client,
+    role: get("role", "title"),
+    email: get("email"),
+    phone: get("phone", "phone #", "phone number"),
+    meetingDate: get("meeting date", "date") || new Date().toISOString().slice(0, 10),
+    meetingTime: get("meeting time", "time") || "09:00",
+    touchpointType: (get("touchpoint type", "type") as SheetMeeting["touchpointType"]) || "Meeting",
+    meetingNotes: get("meeting notes", "notes"),
+    nextSteps: get("next steps"),
+    status: (get("status") as SheetMeeting["status"]) || "Scheduled",
+    source: "Sheet" as const
+  };
+}
+
 function resolveAccountName(
   account: string,
   masterIndex: Map<string, string>,
@@ -1209,4 +1385,30 @@ function businessDaysSince(timestamp: number, now: Date) {
   }
 
   return days;
+}
+
+function getDailyQuote(now: Date) {
+  const start = new Date(now.getFullYear(), 0, 0);
+  const diff = now.getTime() - start.getTime();
+  const dayOfYear = Math.floor(diff / 86400000);
+  return DAILY_QUOTES[dayOfYear % DAILY_QUOTES.length];
+}
+
+function getQuarterCountdown(now: Date) {
+  const month = now.getMonth();
+  const quarterEndMonth = month <= 2 ? 2 : month <= 5 ? 5 : month <= 8 ? 8 : 11;
+  const quarterEnd = new Date(now.getFullYear(), quarterEndMonth + 1, 1, 0, 0, 0, 0);
+  const diff = Math.max(0, quarterEnd.getTime() - now.getTime());
+  const totalSeconds = Math.floor(diff / 1000);
+  const days = Math.floor(totalSeconds / 86400);
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  return {
+    days: String(days),
+    hours: String(hours).padStart(2, "0"),
+    minutes: String(minutes).padStart(2, "0"),
+    seconds: String(seconds).padStart(2, "0")
+  };
 }
