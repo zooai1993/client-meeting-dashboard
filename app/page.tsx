@@ -879,24 +879,24 @@ function AccountLeadCard({
       <div className="lead-list">
         {account.leads.length ? (
           account.leads.map((lead) => (
-            <div key={lead.key} className="lead-row">
-              <div>
-                <p className="lead-name">{lead.client}</p>
-                <p className="meeting-notes">
-                  {lead.role ? `Title: ${lead.role}` : "Title: Not added"}
-                </p>
-                <p className="meeting-notes">
-                  {lead.email || "No email"}
-                </p>
+            <details key={lead.key} className="lead-card">
+              <summary className="lead-summary">
+                <div>
+                  <p className="lead-name">{lead.client}</p>
+                  <p className="meeting-notes">{lead.role ? `Title: ${lead.role}` : "Title: Not added"}</p>
+                </div>
+                <div className="lead-meta">
+                  <span className={`meeting-status ${statusClassName(lead.latestStatus)}`}>{lead.latestStatus}</span>
+                </div>
+              </summary>
+              <div className="lead-details">
+                <p className="meeting-notes">{lead.email || "No email"}</p>
                 <p className="meeting-notes">
                   Latest touchpoint: {lead.latestTouchpointType} on {lead.latestTouchpointDate}
                 </p>
+                <p className="meeting-notes">{lead.meetingCount} touchpoints</p>
               </div>
-              <div className="lead-meta">
-                <span className={`meeting-status ${statusClassName(lead.latestStatus)}`}>{lead.latestStatus}</span>
-                <span className="meeting-notes">{lead.meetingCount} touchpoints</span>
-              </div>
-            </div>
+            </details>
           ))
         ) : (
           <div className="empty-state">No leads added yet.</div>
