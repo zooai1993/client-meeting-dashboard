@@ -793,30 +793,6 @@ export default function Page() {
               </div>
             </article>
 
-            <article className="card list-card">
-              <div className="card-heading">
-                <div>
-                  <p className="section-kicker">Scheduled</p>
-                  <h2>Upcoming scheduled meetings</h2>
-                </div>
-              </div>
-
-              <div className="meeting-list">
-                {scheduledMeetings.length ? (
-                  scheduledMeetings.map((meeting) => (
-                    <MeetingEditor
-                      key={`scheduled-${meeting.id}`}
-                      meeting={meeting}
-                      onSave={saveMeeting}
-                      onDelete={handleDelete}
-                    />
-                  ))
-                ) : (
-                  <div className="empty-state">No scheduled meetings found.</div>
-                )}
-              </div>
-            </article>
-
             <article className="card list-card archive-card">
               <div className="card-heading">
                 <div>
