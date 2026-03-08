@@ -143,6 +143,10 @@ export default function Page() {
     .filter((meeting) => isArchivedMeeting(meeting, now))
     .sort((a, b) => getMeetingDate(b).getTime() - getMeetingDate(a).getTime());
   const accountLeads = useMemo(() => buildAccountLeads(meetings, masterAccounts), [meetings]);
+  const selectedAccountLeads = useMemo(
+    () => accountLeads.find((account) => account.account === form.account)?.leads ?? [],
+    [accountLeads, form.account]
+  );
   const upcomingCount = activeMeetings.filter((meeting) => getMeetingDate(meeting) >= now).length;
   const archivedCount = archivedMeetings.length;
   const followUpCount = activeMeetings.filter((meeting) => meeting.status === "Needs follow-up").length;
@@ -173,6 +177,37 @@ export default function Page() {
         current.map((meeting) => (meeting.id === id ? { ...meeting, [field]: value } : meeting))
       );
     });
+  }
+
+  function handleAccountChange(account: string) {
+    setForm((current) => ({
+      ...current,
+      account,
+      client: "",
+      role: "",
+      email: ""
+    }));
+  }
+
+  function handleLeadChange(client: string) {
+    if (client === "__new__") {
+      setForm((current) => ({
+        ...current,
+        client: "",
+        role: "",
+        email: ""
+      }));
+      return;
+    }
+
+    const selectedLead = selectedAccountLeads.find((lead) => lead.client === client);
+
+    setForm((current) => ({
+      ...current,
+      client,
+      role: selectedLead?.role ?? "",
+      email: selectedLead?.email ?? ""
+    }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -331,18 +366,42 @@ export default function Page() {
             </div>
 
             <form className="meeting-form compact-form" onSubmit={handleSubmit}>
-              <input
+              <select
                 required
                 value={form.account}
-                onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}
-                placeholder="Account"
-              />
-              <input
+                onChange={(event) => handleAccountChange(event.target.value)}
+              >
+                <option value="">Select account</option>
+                {masterAccounts.map((account) => (
+                  <option key={account} value={account}>
+                    {account}
+                  </option>
+                ))}
+              </select>
+              <select
                 required
-                value={form.client}
-                onChange={(event) => setForm((current) => ({ ...current, client: event.target.value }))}
-                placeholder="Client"
-              />
+                value={selectedAccountLeads.some((lead) => lead.client === form.client) ? form.client : "__new__"}
+                onChange={(event) => handleLeadChange(event.target.value)}
+                disabled={!form.account}
+              >
+                <option value="">{form.account ? "Select lead" : "Select account first"}</option>
+                {selectedAccountLeads.map((lead) => (
+                  <option key={lead.key} value={lead.client}>
+                    {lead.client}
+                  </option>
+                ))}
+                {form.account ? <option value="__new__">Add new lead</option> : null}
+              </select>
+              {!selectedAccountLeads.some((lead) => lead.client === form.client) ? (
+                <input
+                  required
+                  value={form.client}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, client: event.target.value }))
+                  }
+                  placeholder="New lead name"
+                />
+              ) : null}
               <input
                 value={form.role}
                 onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
