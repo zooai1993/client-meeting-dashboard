@@ -5,6 +5,10 @@ import { FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState, useT
 import { SheetMeeting, sheetSeedData } from "../lib/sheet-data";
 
 type MeetingStatus = SheetMeeting["status"];
+type MeetingField = keyof Pick<
+  SheetMeeting,
+  "meetingDate" | "meetingTime" | "meetingNotes" | "nextSteps" | "status"
+>;
 
 const STORAGE_KEY = "client-meeting-dashboard";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
@@ -12,14 +16,10 @@ const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
 const defaultForm = {
   account: "",
   client: "",
-  role: "",
   email: "",
-  phone: "",
   meetingDate: "",
   meetingTime: "",
-  status: "Scheduled" as MeetingStatus,
-  meetingNotes: "",
-  nextSteps: ""
+  meetingNotes: ""
 };
 
 declare global {
@@ -54,20 +54,11 @@ function getMeetingDate(meeting: SheetMeeting) {
 
 function formatMeetingDate(meeting: SheetMeeting) {
   return new Intl.DateTimeFormat(undefined, {
-    weekday: "short",
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit"
   }).format(getMeetingDate(meeting));
-}
-
-function formatToday() {
-  return new Intl.DateTimeFormat(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric"
-  }).format(new Date());
 }
 
 function readStoredMeetings() {
@@ -93,10 +84,10 @@ export default function Page() {
   const [meetings, setMeetings] = useState<SheetMeeting[]>([]);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(defaultForm);
-  const [isPending, startTransition] = useTransition();
   const [hasHydrated, setHasHydrated] = useState(false);
-  const [calendarStatus, setCalendarStatus] = useState("Google Calendar not connected.");
+  const [isPending, startTransition] = useTransition();
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
+  const [calendarStatus, setCalendarStatus] = useState("Calendar not connected.");
   const tokenClientRef = useRef<{
     requestAccessToken: (options?: { prompt?: string }) => void;
   } | null>(null);
@@ -131,9 +122,8 @@ export default function Page() {
       [
         meeting.account,
         meeting.client,
-        meeting.role,
         meeting.email,
-        meeting.phone,
+        meeting.role,
         meeting.meetingNotes,
         meeting.nextSteps
       ]
@@ -144,11 +134,9 @@ export default function Page() {
   }, [deferredSearch, sortedMeetings]);
 
   const now = new Date();
-  const upcomingMeetings = filteredMeetings.filter((meeting) => getMeetingDate(meeting) >= now);
-  const followUps = meetings.filter((meeting) => meeting.status === "Needs follow-up");
-  const completedMeetings = meetings.filter((meeting) => meeting.status === "Completed");
-  const uniqueAccounts = new Set(meetings.map((meeting) => meeting.account));
-  const calendarLinked = Boolean(calendarToken);
+  const scheduledMeetings = filteredMeetings.filter((meeting) => meeting.status === "Scheduled");
+  const upcomingCount = filteredMeetings.filter((meeting) => getMeetingDate(meeting) >= now).length;
+  const followUpCount = filteredMeetings.filter((meeting) => meeting.status === "Needs follow-up").length;
 
   function initializeGoogleClient() {
     if (!googleClientId || !window.google) {
@@ -160,13 +148,21 @@ export default function Page() {
       scope: GOOGLE_SCOPE,
       callback: (response) => {
         if (response.error || !response.access_token) {
-          setCalendarStatus("Google Calendar connection failed.");
+          setCalendarStatus("Calendar connection failed.");
           return;
         }
 
         setCalendarToken(response.access_token);
-        setCalendarStatus("Google Calendar connected. Ready to sync.");
+        setCalendarStatus("Calendar connected.");
       }
+    });
+  }
+
+  function updateMeeting(id: string, field: MeetingField, value: string) {
+    startTransition(() => {
+      setMeetings((current) =>
+        current.map((meeting) => (meeting.id === id ? { ...meeting, [field]: value } : meeting))
+      );
     });
   }
 
@@ -177,14 +173,14 @@ export default function Page() {
       id: createId(form.account, form.client),
       account: form.account.trim(),
       client: form.client.trim(),
-      role: form.role.trim(),
+      role: "",
       email: form.email.trim(),
-      phone: form.phone.trim(),
+      phone: "",
       meetingDate: form.meetingDate,
       meetingTime: form.meetingTime,
-      status: form.status,
       meetingNotes: form.meetingNotes.trim(),
-      nextSteps: form.nextSteps.trim(),
+      nextSteps: "",
+      status: "Scheduled",
       source: "Sheet"
     };
 
@@ -196,12 +192,12 @@ export default function Page() {
 
   async function connectCalendar() {
     if (!googleClientId) {
-      setCalendarStatus("Add NEXT_PUBLIC_GOOGLE_CLIENT_ID to enable Google Calendar.");
+      setCalendarStatus("Add Google client ID in Vercel settings.");
       return;
     }
 
     if (!tokenClientRef.current) {
-      setCalendarStatus("Google client is still loading.");
+      setCalendarStatus("Google client still loading.");
       return;
     }
 
@@ -210,11 +206,11 @@ export default function Page() {
 
   async function syncCalendar() {
     if (!calendarToken) {
-      setCalendarStatus("Connect Google Calendar before syncing.");
+      setCalendarStatus("Connect calendar first.");
       return;
     }
 
-    setCalendarStatus("Syncing calendar events...");
+    setCalendarStatus("Syncing...");
 
     const url = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
     url.searchParams.set("singleEvents", "true");
@@ -223,13 +219,11 @@ export default function Page() {
     url.searchParams.set("maxResults", "50");
 
     const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${calendarToken}`
-      }
+      headers: { Authorization: `Bearer ${calendarToken}` }
     });
 
     if (!response.ok) {
-      setCalendarStatus("Calendar sync failed. Check your Google OAuth client.");
+      setCalendarStatus("Calendar sync failed.");
       return;
     }
 
@@ -255,8 +249,8 @@ export default function Page() {
             return meeting;
           }
 
-          const { meetingDate, meetingTime } = getEventStart(matchedEvent.start);
           matches += 1;
+          const { meetingDate, meetingTime } = getEventStart(matchedEvent.start);
 
           return {
             ...meeting,
@@ -270,11 +264,7 @@ export default function Page() {
       );
     });
 
-    setCalendarStatus(
-      matches
-        ? `Calendar sync complete. Updated ${matches} ${matches === 1 ? "record" : "records"}.`
-        : "Calendar sync complete. No matching events found."
-    );
+    setCalendarStatus(matches ? `Synced ${matches} records.` : "No matching events found.");
   }
 
   function handleDelete(id: string) {
@@ -285,136 +275,75 @@ export default function Page() {
 
   return (
     <>
-      <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" onLoad={initializeGoogleClient} />
+      <Script
+        src="https://accounts.google.com/gsi/client"
+        strategy="afterInteractive"
+        onLoad={initializeGoogleClient}
+      />
       <main className="page-shell">
-        <header className="hero">
-          <div className="hero-copy-block">
-            <p className="eyebrow">Accounts and clients</p>
+        <section className="topbar">
+          <div>
+            <p className="eyebrow">Accounts</p>
             <h1>Meeting Dashboard</h1>
-            <p className="hero-copy">
-              Structured around your prospecting sheet, with Google Calendar sync to auto-fill
-              meeting dates for matching contacts.
-            </p>
           </div>
-
-          <div className="hero-panel">
-            <p className="panel-label">Today</p>
-            <p className="panel-date">{formatToday()}</p>
-            <div className="hero-stats">
-              <div>
-                <span className="stat-value">{upcomingMeetings.length}</span>
-                <span className="stat-label">Upcoming</span>
-              </div>
-              <div>
-                <span className="stat-value">{followUps.length}</span>
-                <span className="stat-label">Follow-ups</span>
-              </div>
+          <div className="stat-strip">
+            <div className="mini-stat">
+              <strong>{upcomingCount}</strong>
+              <span>Upcoming</span>
+            </div>
+            <div className="mini-stat">
+              <strong>{followUpCount}</strong>
+              <span>Follow-ups</span>
             </div>
           </div>
-        </header>
-
-        <section className="toolbar">
-          <div>
-            <p className="section-kicker">Quick access</p>
-            <h2>Find an account instantly</h2>
-          </div>
-          <label className="search-field">
-            <span className="sr-only">Search meetings</span>
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by account, client, email, notes, or next step"
-            />
-          </label>
         </section>
 
+        <section className="toolbar">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search account, contact, email, notes"
+          />
+          <button className="ghost-button" type="button" onClick={connectCalendar}>
+            {calendarToken ? "Reconnect Calendar" : "Connect Calendar"}
+          </button>
+          <button className="ghost-button" type="button" onClick={syncCalendar}>
+            Sync Dates
+          </button>
+        </section>
+
+        <p className="status-line">{calendarStatus}</p>
+
         <section className="dashboard-grid">
-          <article className="card sync-card">
+          <article className="card compact-card">
             <div className="card-heading">
               <div>
-                <p className="section-kicker">Calendar</p>
-                <h2>Google Calendar sync</h2>
+                <p className="section-kicker">New</p>
+                <h2>Add meeting</h2>
               </div>
             </div>
 
-            <p className="sync-copy">
-              Match upcoming calendar events against your sheet contacts by attendee email, client
-              name, or account name.
-            </p>
-            <div className="sync-actions">
-              <button className="primary-button" type="button" onClick={connectCalendar}>
-                {calendarLinked ? "Reconnect Google Calendar" : "Connect Google Calendar"}
-              </button>
-              <button className="ghost-button" type="button" onClick={syncCalendar}>
-                Sync meeting dates
-              </button>
-            </div>
-            <p className="meeting-notes">{calendarStatus}</p>
-          </article>
-
-        <article className="card">
-          <div className="card-heading">
-            <div>
-              <p className="section-kicker">Quick capture</p>
-              <h2>Add a contact</h2>
-            </div>
-          </div>
-
-          <form className="meeting-form" onSubmit={handleSubmit}>
-            <label>
-              Account
+            <form className="meeting-form compact-form" onSubmit={handleSubmit}>
               <input
                 required
                 value={form.account}
                 onChange={(event) => setForm((current) => ({ ...current, account: event.target.value }))}
-                placeholder="Sage Hospitality Group"
+                placeholder="Account"
               />
-            </label>
-
-            <label>
-              Client name
               <input
                 required
                 value={form.client}
                 onChange={(event) => setForm((current) => ({ ...current, client: event.target.value }))}
-                placeholder="Daniel De Olmo"
+                placeholder="Client"
               />
-            </label>
-
-            <label>
-              Role
               <input
-                value={form.role}
-                onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
-                placeholder="CEO"
+                value={form.email}
+                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                placeholder="Email"
+                type="email"
               />
-            </label>
-
-            <div className="split-fields">
-              <label>
-                Email
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                  placeholder="contact@company.com"
-                />
-              </label>
-
-              <label>
-                Phone
-                <input
-                  value={form.phone}
-                  onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
-                  placeholder="555-123-4567"
-                />
-              </label>
-            </div>
-
-            <div className="split-fields">
-              <label>
-                Meeting date
+              <div className="split-fields">
                 <input
                   required
                   type="date"
@@ -423,10 +352,6 @@ export default function Page() {
                     setForm((current) => ({ ...current, meetingDate: event.target.value }))
                   }
                 />
-              </label>
-
-              <label>
-                Meeting time
                 <input
                   required
                   type="time"
@@ -435,190 +360,113 @@ export default function Page() {
                     setForm((current) => ({ ...current, meetingTime: event.target.value }))
                   }
                 />
-              </label>
-            </div>
-
-            <label>
-              Status
-              <select
-                value={form.status}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    status: event.target.value as MeetingStatus
-                  }))
-                }
-              >
-                <option value="Scheduled">Scheduled</option>
-                <option value="Completed">Completed</option>
-                <option value="Needs follow-up">Needs follow-up</option>
-              </select>
-            </label>
-
-            <label>
-              Meeting notes
+              </div>
               <textarea
-                rows={4}
+                rows={3}
                 value={form.meetingNotes}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, meetingNotes: event.target.value }))
                 }
-                placeholder="Intro to CTO, renewal prep, budget review..."
+                placeholder="Notes"
               />
-            </label>
+              <button className="primary-button" type="submit" disabled={isPending}>
+                {isPending ? "Saving..." : "Add"}
+              </button>
+            </form>
+          </article>
 
-            <label>
-              Next steps
-              <textarea
-                rows={3}
-                value={form.nextSteps}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, nextSteps: event.target.value }))
-                }
-                placeholder="Owners, deliverables, and follow-up timing."
-              />
-            </label>
-
-            <button className="primary-button" type="submit" disabled={isPending}>
-              {isPending ? "Saving..." : "Save contact"}
-            </button>
-          </form>
-        </article>
-
-        <article className="card">
-          <div className="card-heading">
-            <div>
-              <p className="section-kicker">Overview</p>
-              <h2>Pipeline snapshot</h2>
-            </div>
-          </div>
-
-          <div className="summary-list">
-            <div className="summary-item">
+          <article className="card list-card">
+            <div className="card-heading">
               <div>
-                <p>Active accounts</p>
-                <p className="meeting-notes">Distinct clients in your dashboard</p>
+                <p className="section-kicker">Scheduled</p>
+                <h2>Editable meetings</h2>
               </div>
-              <strong>{uniqueAccounts.size}</strong>
             </div>
-            <div className="summary-item">
-              <div>
-                <p>Contacts tracked</p>
-                <p className="meeting-notes">Every row imported from your sheet or added manually</p>
-              </div>
-              <strong>{meetings.length}</strong>
-            </div>
-            <div className="summary-item">
-              <div>
-                <p>Completed</p>
-                <p className="meeting-notes">Calls and reviews already wrapped</p>
-              </div>
-              <strong>{completedMeetings.length}</strong>
-            </div>
-            <div className="summary-item">
-              <div>
-                <p>Needs follow-up</p>
-                <p className="meeting-notes">Accounts that still need a next step</p>
-              </div>
-              <strong>{followUps.length}</strong>
-            </div>
-          </div>
-        </article>
 
-        <article className="card">
-          <div className="card-heading">
-            <div>
-              <p className="section-kicker">Upcoming</p>
-              <h2>Next meetings</h2>
+            <div className="meeting-list">
+              {scheduledMeetings.length ? (
+                scheduledMeetings.map((meeting) => (
+                  <MeetingEditor
+                    key={meeting.id}
+                    meeting={meeting}
+                    onChange={updateMeeting}
+                    onDelete={handleDelete}
+                  />
+                ))
+              ) : (
+                <div className="empty-state">No scheduled meetings found.</div>
+              )}
             </div>
-          </div>
-
-          <div className="meeting-list">
-            {upcomingMeetings.length ? (
-              upcomingMeetings.slice(0, 5).map((meeting) => (
-                <MeetingCard key={meeting.id} meeting={meeting} onDelete={handleDelete} />
-              ))
-            ) : (
-              <EmptyState message="No upcoming meetings match your current view." />
-            )}
-          </div>
-        </article>
-
-        <article className="card">
-          <div className="card-heading">
-            <div>
-              <p className="section-kicker">History</p>
-              <h2>All meetings</h2>
-            </div>
-          </div>
-
-          <div className="meeting-list">
-            {filteredMeetings.length ? (
-              [...filteredMeetings].reverse().map((meeting) => (
-                <MeetingCard key={meeting.id} meeting={meeting} onDelete={handleDelete} />
-              ))
-            ) : (
-              <EmptyState message="No meetings found. Adjust the search or add a new one." />
-            )}
-          </div>
-        </article>
+          </article>
         </section>
       </main>
     </>
   );
 }
 
-function EmptyState({ message }: { message: string }) {
-  return <div className="empty-state">{message}</div>;
-}
-
-function MeetingCard({
+function MeetingEditor({
   meeting,
+  onChange,
   onDelete
 }: {
   meeting: SheetMeeting;
+  onChange: (id: string, field: MeetingField, value: string) => void;
   onDelete: (id: string) => void;
 }) {
   return (
-    <article className="meeting-item">
+    <article className="meeting-item compact-item">
       <div className="meeting-meta">
         <div>
           <p className="meeting-client">{meeting.account}</p>
-          <p className="meeting-contact">
-            {meeting.client}
-            {meeting.role ? `, ${meeting.role}` : ""}
-          </p>
+          <p className="meeting-contact">{meeting.client}</p>
         </div>
         <span className={`meeting-status ${statusClassName(meeting.status)}`}>{meeting.status}</span>
       </div>
 
       <p className="meeting-datetime">{formatMeetingDate(meeting)}</p>
-      <p className="meeting-focus">{meeting.email || "No email added."}</p>
-      <p className="meeting-notes">{meeting.meetingNotes || "No notes yet."}</p>
-      <p className="meeting-notes">{meeting.nextSteps || "No next steps yet."}</p>
-      <p className="meeting-notes">Source: {meeting.source}</p>
-      {meeting.calendarEventLink ? (
-        <a className="meeting-link" href={meeting.calendarEventLink} target="_blank" rel="noreferrer">
-          Open calendar event
-        </a>
-      ) : null}
-      <button className="ghost-button" type="button" onClick={() => onDelete(meeting.id)}>
-        Delete
-      </button>
+
+      <div className="editor-grid">
+        <input
+          type="date"
+          value={meeting.meetingDate}
+          onChange={(event) => onChange(meeting.id, "meetingDate", event.target.value)}
+        />
+        <input
+          type="time"
+          value={meeting.meetingTime}
+          onChange={(event) => onChange(meeting.id, "meetingTime", event.target.value)}
+        />
+        <select
+          value={meeting.status}
+          onChange={(event) => onChange(meeting.id, "status", event.target.value)}
+        >
+          <option value="Scheduled">Scheduled</option>
+          <option value="Completed">Completed</option>
+          <option value="Needs follow-up">Needs follow-up</option>
+        </select>
+      </div>
+
+      <textarea
+        rows={2}
+        value={meeting.meetingNotes}
+        onChange={(event) => onChange(meeting.id, "meetingNotes", event.target.value)}
+        placeholder="Notes"
+      />
+      <textarea
+        rows={2}
+        value={meeting.nextSteps}
+        onChange={(event) => onChange(meeting.id, "nextSteps", event.target.value)}
+        placeholder="Next steps"
+      />
+
+      <div className="item-footer">
+        <span className="meeting-notes">{meeting.email || "No email"}</span>
+        <button className="ghost-button" type="button" onClick={() => onDelete(meeting.id)}>
+          Delete
+        </button>
+      </div>
     </article>
   );
-}
-
-function statusClassName(status: MeetingStatus) {
-  if (status === "Scheduled") {
-    return "status-scheduled";
-  }
-
-  if (status === "Needs follow-up") {
-    return "status-follow-up";
-  }
-
-  return "status-completed";
 }
 
 function getEventStart(start?: { date?: string; dateTime?: string }) {
@@ -644,11 +492,7 @@ function eventMatchesMeeting(
   },
   meeting: SheetMeeting
 ) {
-  const haystack = [event.summary, event.description]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-
+  const haystack = [event.summary, event.description].filter(Boolean).join(" ").toLowerCase();
   const attendeeEmails = new Set(
     (event.attendees ?? []).map((attendee) => attendee.email?.toLowerCase()).filter(Boolean)
   );
@@ -658,4 +502,16 @@ function eventMatchesMeeting(
     haystack.includes(meeting.client.toLowerCase()) ||
     haystack.includes(meeting.account.toLowerCase())
   );
+}
+
+function statusClassName(status: MeetingStatus) {
+  if (status === "Scheduled") {
+    return "status-scheduled";
+  }
+
+  if (status === "Needs follow-up") {
+    return "status-follow-up";
+  }
+
+  return "status-completed";
 }

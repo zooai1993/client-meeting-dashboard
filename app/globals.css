@@ -1,15 +1,13 @@
 :root {
-  --bg: #f2efe8;
-  --panel: rgba(255, 252, 247, 0.8);
-  --panel-strong: #fffaf1;
+  --bg: #f4efe7;
+  --panel: #fffaf3;
   --line: rgba(36, 33, 25, 0.1);
-  --text: #1f1b16;
-  --muted: #6a6256;
+  --text: #201c16;
+  --muted: #6e6558;
   --accent: #c96d43;
   --accent-dark: #8e4525;
-  --warning: #94622d;
   --success: #295b46;
-  --shadow: 0 24px 60px rgba(76, 53, 28, 0.14);
+  --warning: #94622d;
 }
 
 * {
@@ -25,10 +23,7 @@ body {
   min-height: 100vh;
   font-family: "Trebuchet MS", "Segoe UI", sans-serif;
   color: var(--text);
-  background:
-    radial-gradient(circle at top left, rgba(201, 109, 67, 0.18), transparent 30%),
-    radial-gradient(circle at right, rgba(41, 91, 70, 0.12), transparent 25%),
-    linear-gradient(160deg, #efe5d3 0%, var(--bg) 40%, #efe9df 100%);
+  background: linear-gradient(160deg, #efe5d3 0%, var(--bg) 100%);
 }
 
 button,
@@ -38,65 +33,47 @@ textarea {
   font: inherit;
 }
 
+body,
+input,
+select,
+textarea,
+button {
+  color: var(--text);
+}
+
 .page-shell {
-  width: min(1200px, calc(100% - 32px));
+  width: min(1120px, calc(100% - 28px));
   margin: 0 auto;
-  padding: 32px 0 48px;
+  padding: 24px 0 40px;
 }
 
-.hero {
-  display: grid;
-  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.hero-copy-block,
-.hero-panel,
+.topbar,
 .toolbar,
 .card {
-  position: relative;
-  overflow: hidden;
-  backdrop-filter: blur(18px);
-  background: var(--panel);
+  background: rgba(255, 250, 243, 0.92);
   border: 1px solid var(--line);
-  border-radius: 28px;
-  box-shadow: var(--shadow);
+  border-radius: 22px;
 }
 
-.hero-copy-block::before,
-.hero-panel::before,
-.toolbar::before,
-.card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-radius: 28px;
-  pointer-events: none;
-}
-
-.hero-copy-block,
-.hero-panel,
+.topbar,
 .toolbar,
 .card {
-  padding: 24px;
+  padding: 18px;
 }
 
-.hero-panel {
-  background:
-    linear-gradient(180deg, rgba(255, 250, 241, 0.96), rgba(239, 210, 198, 0.7)),
-    var(--panel-strong);
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: end;
 }
 
 .eyebrow,
 .section-kicker,
-.panel-label,
-.stat-label {
+.meeting-status {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   font-size: 0.74rem;
-  color: var(--muted);
 }
 
 h1,
@@ -106,123 +83,94 @@ p {
 }
 
 h1 {
-  font-size: clamp(2.4rem, 5vw, 4.8rem);
-  line-height: 0.95;
-  margin: 12px 0 16px;
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  line-height: 1;
+  margin-top: 6px;
 }
 
 h2 {
-  font-size: 1.35rem;
+  font-size: 1.1rem;
 }
 
-.hero-copy {
-  max-width: 34rem;
-  color: var(--muted);
-  line-height: 1.5;
+.stat-strip {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.panel-date {
-  font-size: 1.8rem;
-  font-weight: 700;
-  margin: 8px 0 20px;
+.mini-stat {
+  min-width: 110px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
 }
 
-.hero-stats {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.hero-stats div,
-.summary-item {
-  padding: 16px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.45);
-  border: 1px solid rgba(36, 33, 25, 0.08);
-}
-
-.stat-value {
+.mini-stat strong {
   display: block;
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 1.4rem;
+}
+
+.mini-stat span,
+.status-line,
+.meeting-contact,
+.meeting-datetime,
+.meeting-notes {
+  color: var(--muted);
 }
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 0.8fr) minmax(320px, 1fr);
-  gap: 20px;
-  align-items: end;
-  margin-bottom: 20px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  margin-top: 14px;
 }
 
-.search-field input {
-  width: 100%;
+.status-line {
+  margin: 10px 4px 0;
+  font-size: 0.92rem;
 }
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  gap: 20px;
-}
-
-.sync-card {
-  grid-column: 1 / -1;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 16px;
+  margin-top: 14px;
 }
 
 .card-heading {
-  margin-bottom: 20px;
-}
-
-.sync-copy {
-  color: var(--muted);
-  line-height: 1.5;
-  margin-bottom: 16px;
-}
-
-.sync-actions {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 
 .meeting-form,
-.summary-list,
 .meeting-list {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
-.meeting-form label {
-  display: grid;
-  gap: 8px;
-  font-size: 0.95rem;
-  color: var(--muted);
+.compact-form input,
+.compact-form textarea,
+.editor-grid input,
+.editor-grid select,
+textarea,
+input,
+select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid rgba(36, 33, 25, 0.14);
+  border-radius: 12px;
+  background: #fff;
 }
 
-.split-fields {
+.split-fields,
+.editor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 10px;
 }
 
-input,
-select,
-textarea {
-  width: 100%;
-  border: 1px solid rgba(36, 33, 25, 0.12);
-  background: rgba(255, 255, 255, 0.7);
-  border-radius: 16px;
-  padding: 14px 16px;
-  color: var(--text);
-}
-
-input:focus,
-select:focus,
-textarea:focus,
-button:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
+.editor-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 textarea {
@@ -233,9 +181,8 @@ textarea {
 .ghost-button {
   border: 0;
   border-radius: 999px;
-  padding: 14px 18px;
+  padding: 11px 14px;
   cursor: pointer;
-  transition: transform 180ms ease, opacity 180ms ease;
 }
 
 .primary-button {
@@ -244,83 +191,38 @@ textarea {
   font-weight: 700;
 }
 
-.primary-button:disabled {
-  opacity: 0.7;
-  cursor: wait;
-}
-
-.primary-button:hover,
-.ghost-button:hover {
-  transform: translateY(-1px);
-}
-
 .ghost-button {
+  background: rgba(201, 109, 67, 0.12);
   color: var(--accent-dark);
-  background: rgba(201, 109, 67, 0.1);
-  justify-self: start;
-}
-
-.summary-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: center;
-}
-
-.summary-item strong {
-  font-size: 1.7rem;
 }
 
 .meeting-item {
-  display: grid;
-  gap: 10px;
-  padding: 18px;
-  border-radius: 22px;
-  background: var(--panel-strong);
-  border: 1px solid rgba(36, 33, 25, 0.08);
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
 }
 
-.meeting-meta {
+.meeting-meta,
+.item-footer {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
-  align-items: start;
+  gap: 10px;
+  align-items: center;
 }
 
 .meeting-client {
   font-weight: 700;
-  font-size: 1.08rem;
 }
 
-.meeting-contact,
-.meeting-datetime,
-.meeting-notes {
-  color: var(--muted);
-}
-
-.meeting-focus {
-  font-weight: 500;
-}
-
-.meeting-link {
-  color: var(--accent-dark);
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.meeting-link:hover {
-  text-decoration: underline;
+.meeting-datetime {
+  margin: 6px 0 10px;
+  font-size: 0.92rem;
 }
 
 .meeting-status {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-radius: 999px;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .status-scheduled {
@@ -330,7 +232,6 @@ textarea {
 
 .status-completed {
   background: rgba(36, 33, 25, 0.08);
-  color: var(--text);
 }
 
 .status-follow-up {
@@ -339,50 +240,43 @@ textarea {
 }
 
 .empty-state {
-  padding: 20px;
-  border-radius: 22px;
+  padding: 18px;
   border: 1px dashed rgba(36, 33, 25, 0.18);
+  border-radius: 16px;
   color: var(--muted);
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  border: 0;
-}
-
 @media (max-width: 920px) {
-  .hero,
+  .topbar,
   .toolbar,
+  .meeting-meta,
+  .item-footer,
   .dashboard-grid {
     grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dashboard-grid {
+    display: grid;
   }
 }
 
 @media (max-width: 640px) {
   .page-shell {
-    width: min(100% - 20px, 1200px);
-    padding-top: 20px;
+    width: min(100% - 16px, 1120px);
+    padding-top: 16px;
   }
 
-  .hero-copy-block,
-  .hero-panel,
+  .topbar,
   .toolbar,
   .card {
-    padding: 20px;
+    padding: 14px;
   }
 
   .split-fields,
-  .hero-stats {
+  .editor-grid,
+  .toolbar {
     grid-template-columns: 1fr;
-  }
-
-  h1 {
-    font-size: 2.5rem;
   }
 }
