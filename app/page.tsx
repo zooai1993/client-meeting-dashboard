@@ -6,13 +6,21 @@ import { masterAccounts } from "../lib/account-list";
 import { SheetMeeting, sheetSeedData } from "../lib/sheet-data";
 
 type MeetingStatus = SheetMeeting["status"];
+type EmailActivity = {
+  email: string;
+  timestamp: number;
+  label: string;
+};
 type MeetingField = keyof Pick<
   SheetMeeting,
   "meetingDate" | "meetingTime" | "touchpointType" | "meetingNotes" | "nextSteps" | "status"
 >;
 
 const STORAGE_KEY = "client-meeting-dashboard";
+const DRAFT_STORAGE_KEY = "client-meeting-dashboard-draft";
+const EMAIL_ACTIVITY_STORAGE_KEY = "client-meeting-dashboard-email-activity";
 const GOOGLE_SCOPE = "https://www.googleapis.com/auth/calendar.readonly";
+const GMAIL_SCOPE = "https://www.googleapis.com/auth/gmail.readonly";
 
 const defaultForm = {
   account: "",
@@ -83,6 +91,40 @@ function readStoredMeetings() {
   }
 }
 
+function readStoredDraft() {
+  if (typeof window === "undefined") {
+    return defaultForm;
+  }
+
+  const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+  if (!raw) {
+    return defaultForm;
+  }
+
+  try {
+    return { ...defaultForm, ...JSON.parse(raw) } as typeof defaultForm;
+  } catch {
+    return defaultForm;
+  }
+}
+
+function readStoredEmailActivity() {
+  if (typeof window === "undefined") {
+    return {} as Record<string, EmailActivity>;
+  }
+
+  const raw = window.localStorage.getItem(EMAIL_ACTIVITY_STORAGE_KEY);
+  if (!raw) {
+    return {} as Record<string, EmailActivity>;
+  }
+
+  try {
+    return JSON.parse(raw) as Record<string, EmailActivity>;
+  } catch {
+    return {} as Record<string, EmailActivity>;
+  }
+}
+
 export default function Page() {
   const [meetings, setMeetings] = useState<SheetMeeting[]>([]);
   const [search, setSearch] = useState("");
@@ -90,8 +132,14 @@ export default function Page() {
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
+  const [gmailToken, setGmailToken] = useState<string | null>(null);
   const [calendarStatus, setCalendarStatus] = useState("Calendar not connected.");
+  const [gmailStatus, setGmailStatus] = useState("Gmail not connected.");
+  const [emailActivity, setEmailActivity] = useState<Record<string, EmailActivity>>({});
   const tokenClientRef = useRef<{
+    requestAccessToken: (options?: { prompt?: string }) => void;
+  } | null>(null);
+  const gmailTokenClientRef = useRef<{
     requestAccessToken: (options?: { prompt?: string }) => void;
   } | null>(null);
   const deferredSearch = useDeferredValue(search);
@@ -99,6 +147,8 @@ export default function Page() {
 
   useEffect(() => {
     setMeetings(readStoredMeetings());
+    setForm(readStoredDraft());
+    setEmailActivity(readStoredEmailActivity());
     setHasHydrated(true);
   }, []);
 
@@ -109,6 +159,22 @@ export default function Page() {
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(meetings));
   }, [hasHydrated, meetings]);
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(form));
+  }, [form, hasHydrated]);
+
+  useEffect(() => {
+    if (!hasHydrated) {
+      return;
+    }
+
+    window.localStorage.setItem(EMAIL_ACTIVITY_STORAGE_KEY, JSON.stringify(emailActivity));
+  }, [emailActivity, hasHydrated]);
 
   const sortedMeetings = useMemo(
     () => [...meetings].sort((a, b) => getMeetingDate(a).getTime() - getMeetingDate(b).getTime()),
@@ -142,7 +208,10 @@ export default function Page() {
   const archivedMeetings = [...filteredMeetings]
     .filter((meeting) => isArchivedMeeting(meeting, now))
     .sort((a, b) => getMeetingDate(b).getTime() - getMeetingDate(a).getTime());
-  const accountLeads = useMemo(() => buildAccountLeads(meetings, masterAccounts), [meetings]);
+  const accountLeads = useMemo(
+    () => buildAccountLeads(meetings, masterAccounts, emailActivity),
+    [emailActivity, meetings]
+  );
   const selectedAccountLeads = useMemo(
     () => accountLeads.find((account) => account.account === form.account)?.leads ?? [],
     [accountLeads, form.account]
@@ -150,6 +219,19 @@ export default function Page() {
   const upcomingCount = activeMeetings.filter((meeting) => getMeetingDate(meeting) >= now).length;
   const archivedCount = archivedMeetings.length;
   const followUpCount = activeMeetings.filter((meeting) => meeting.status === "Needs follow-up").length;
+  const staleLeads = useMemo(
+    () =>
+      accountLeads
+        .flatMap((account) => account.leads.map((lead) => ({ ...lead, account: account.account })))
+        .filter(
+          (lead) =>
+            lead.latestTouchpointTimestamp > 0 &&
+            businessDaysSince(lead.latestTouchpointTimestamp, now) >= 2
+        )
+        .sort((a, b) => a.latestTouchpointTimestamp - b.latestTouchpointTimestamp)
+        .slice(0, 5),
+    [accountLeads, now]
+  );
 
   function initializeGoogleClient() {
     if (!googleClientId || !window.google) {
@@ -167,6 +249,20 @@ export default function Page() {
 
         setCalendarToken(response.access_token);
         setCalendarStatus("Calendar connected.");
+      }
+    });
+
+    gmailTokenClientRef.current = window.google.accounts.oauth2.initTokenClient({
+      client_id: googleClientId,
+      scope: GMAIL_SCOPE,
+      callback: (response) => {
+        if (response.error || !response.access_token) {
+          setGmailStatus("Gmail connection failed.");
+          return;
+        }
+
+        setGmailToken(response.access_token);
+        setGmailStatus("Gmail connected.");
       }
     });
   }
@@ -233,6 +329,8 @@ export default function Page() {
       setMeetings((current) => [...current, nextMeeting]);
       setForm(defaultForm);
     });
+
+    window.localStorage.removeItem(DRAFT_STORAGE_KEY);
   }
 
   async function connectCalendar() {
@@ -312,6 +410,93 @@ export default function Page() {
     setCalendarStatus(matches ? `Synced ${matches} records.` : "No matching events found.");
   }
 
+  async function connectGmail() {
+    if (!googleClientId) {
+      setGmailStatus("Add Google client ID in Vercel settings.");
+      return;
+    }
+
+    if (!gmailTokenClientRef.current) {
+      setGmailStatus("Google client still loading.");
+      return;
+    }
+
+    gmailTokenClientRef.current.requestAccessToken({ prompt: "consent" });
+  }
+
+  async function syncGmail() {
+    if (!gmailToken) {
+      setGmailStatus("Connect Gmail first.");
+      return;
+    }
+
+    setGmailStatus("Syncing Gmail...");
+
+    const leads = accountLeads.flatMap((account) => account.leads).filter((lead) => Boolean(lead.email));
+    const nextActivity: Record<string, EmailActivity> = {};
+
+    for (const lead of leads) {
+      const email = lead.email.toLowerCase();
+      const query = encodeURIComponent(`(from:${email} OR to:${email})`);
+      const listResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=1&q=${query}`,
+        {
+          headers: { Authorization: `Bearer ${gmailToken}` }
+        }
+      );
+
+      if (!listResponse.ok) {
+        continue;
+      }
+
+      const listData = (await listResponse.json()) as {
+        messages?: Array<{ id: string }>;
+      };
+
+      const messageId = listData.messages?.[0]?.id;
+      if (!messageId) {
+        continue;
+      }
+
+      const messageResponse = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}?format=metadata&metadataHeaders=Date&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=To`,
+        {
+          headers: { Authorization: `Bearer ${gmailToken}` }
+        }
+      );
+
+      if (!messageResponse.ok) {
+        continue;
+      }
+
+      const messageData = (await messageResponse.json()) as {
+        payload?: {
+          headers?: Array<{ name?: string; value?: string }>;
+        };
+      };
+
+      const headers = messageData.payload?.headers ?? [];
+      const dateHeader = headers.find((header) => header.name?.toLowerCase() === "date")?.value;
+      const parsedDate = dateHeader ? Date.parse(dateHeader) : Number.NaN;
+      if (Number.isNaN(parsedDate)) {
+        continue;
+      }
+
+      nextActivity[email] = {
+        email,
+        timestamp: parsedDate,
+        label: "Gmail"
+      };
+    }
+
+    setEmailActivity(nextActivity);
+    setGmailStatus(
+      Object.keys(nextActivity).length
+        ? `Synced ${Object.keys(nextActivity).length} lead email timestamps.`
+        : "No recent Gmail activity found for current leads."
+    );
+  }
+
   function handleDelete(id: string) {
     startTransition(() => {
       setMeetings((current) => current.filter((meeting) => meeting.id !== id));
@@ -352,9 +537,36 @@ export default function Page() {
           <button className="ghost-button" type="button" onClick={syncCalendar}>
             Sync Dates
           </button>
+          <button className="ghost-button" type="button" onClick={connectGmail}>
+            {gmailToken ? "Reconnect Gmail" : "Connect Gmail"}
+          </button>
+          <button className="ghost-button" type="button" onClick={syncGmail}>
+            Sync Email
+          </button>
         </section>
 
         <p className="status-line">{calendarStatus}</p>
+        <p className="status-line">{gmailStatus}</p>
+
+        <section className="compact-alert">
+          <p className="section-kicker">Needs touch</p>
+          {staleLeads.length ? (
+            <div className="stale-list">
+              {staleLeads.map((lead) => (
+                <div key={`${lead.account}-${lead.key}`} className="stale-row">
+                  <span>
+                    {lead.client} · {lead.account}
+                  </span>
+                  <span className="meeting-notes">
+                    {businessDaysSince(lead.latestTouchpointTimestamp, now)} business days
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="meeting-notes">No leads need follow-up right now.</p>
+          )}
+        </section>
 
         <section className="dashboard-grid">
           <article className="card compact-card">
@@ -649,8 +861,9 @@ function AccountLeadCard({
         email: string;
         meetingCount: number;
         latestStatus: MeetingStatus;
-        latestTouchpointType: NonNullable<SheetMeeting["touchpointType"]>;
+        latestTouchpointType: NonNullable<SheetMeeting["touchpointType"]> | "Gmail";
         latestTouchpointDate: string;
+        latestTouchpointTimestamp: number;
       }>;
   };
 }) {
@@ -767,7 +980,11 @@ function hasUpcomingFollowUp(meeting: SheetMeeting, meetings: SheetMeeting[], no
   );
 }
 
-function buildAccountLeads(meetings: SheetMeeting[], allAccounts: readonly string[]) {
+function buildAccountLeads(
+  meetings: SheetMeeting[],
+  allAccounts: readonly string[],
+  emailActivity: Record<string, EmailActivity>
+) {
   const accountMap = new Map<
     string,
     Map<
@@ -779,9 +996,10 @@ function buildAccountLeads(meetings: SheetMeeting[], allAccounts: readonly strin
         email: string;
         meetingCount: number;
         latestStatus: MeetingStatus;
-        latestTouchpointType: NonNullable<SheetMeeting["touchpointType"]>;
+        latestTouchpointType: NonNullable<SheetMeeting["touchpointType"]> | "Gmail";
         latestTouchpointDate: string;
         latestTimestamp: number;
+        latestTouchpointTimestamp: number;
       }
     >
   >();
@@ -814,7 +1032,8 @@ function buildAccountLeads(meetings: SheetMeeting[], allAccounts: readonly strin
         latestStatus: meeting.status,
         latestTouchpointType: meeting.touchpointType ?? "Meeting",
         latestTouchpointDate: formatTouchpointDate(meeting),
-        latestTimestamp: timestamp
+        latestTimestamp: timestamp,
+        latestTouchpointTimestamp: timestamp
       });
       accountMap.set(accountKey, accountLeads);
       return;
@@ -828,7 +1047,25 @@ function buildAccountLeads(meetings: SheetMeeting[], allAccounts: readonly strin
       existing.latestTouchpointType = meeting.touchpointType ?? "Meeting";
       existing.latestTouchpointDate = formatTouchpointDate(meeting);
       existing.latestTimestamp = timestamp;
+      existing.latestTouchpointTimestamp = timestamp;
     }
+  });
+
+  accountMap.forEach((leads) => {
+    leads.forEach((lead) => {
+      const activity = lead.email ? emailActivity[lead.email.toLowerCase()] : undefined;
+      if (!activity || activity.timestamp < lead.latestTouchpointTimestamp) {
+        return;
+      }
+
+      lead.latestTouchpointType = "Gmail";
+      lead.latestTouchpointDate = new Intl.DateTimeFormat(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric"
+      }).format(new Date(activity.timestamp));
+      lead.latestTouchpointTimestamp = activity.timestamp;
+    });
   });
 
   return [...accountMap.entries()]
@@ -880,4 +1117,23 @@ function resolveAccountName(
   }
 
   return account;
+}
+
+function businessDaysSince(timestamp: number, now: Date) {
+  const start = new Date(timestamp);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(now);
+  end.setHours(0, 0, 0, 0);
+
+  let days = 0;
+  const current = new Date(start);
+  while (current < end) {
+    current.setDate(current.getDate() + 1);
+    const day = current.getDay();
+    if (day !== 0 && day !== 6) {
+      days += 1;
+    }
+  }
+
+  return days;
 }

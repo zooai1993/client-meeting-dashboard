@@ -131,13 +131,34 @@ h2 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
   gap: 10px;
   margin-top: 14px;
 }
 
 .status-line {
   margin: 10px 4px 0;
+  font-size: 0.92rem;
+}
+
+.compact-alert {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(17, 21, 19, 0.72);
+}
+
+.stale-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.stale-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   font-size: 0.92rem;
 }
 
