@@ -536,10 +536,19 @@ export default function Page() {
       />
       <main className="page-shell">
         <section className="topbar">
-          <div>
+          <div className="topbar-main">
+            {selectedAccount ? (
+              <button className="home-button" type="button" onClick={() => setSelectedAccount("")} aria-label="Go home">
+                Home
+              </button>
+            ) : null}
             <p className="eyebrow">OpenAI Accounts</p>
             <h1>Meetings</h1>
-            <p className="headline-copy">Active calls stay visible. Past calls archive automatically.</p>
+            <p className="headline-copy">
+              {selectedAccount
+                ? "Focused account view with leads, notes, and upcoming meetings."
+                : "Scheduled meetings coming up in the next 7 days."}
+            </p>
           </div>
           <div className="topbar-side">
             <div className="account-picker">
@@ -591,25 +600,27 @@ export default function Page() {
         <p className="status-line">{calendarStatus}</p>
         <p className="status-line">{gmailStatus}</p>
 
-        <section className="compact-alert">
-          <p className="section-kicker">Needs touch</p>
-          {staleLeads.length ? (
-            <div className="stale-list">
-              {staleLeads.map((lead) => (
-                <div key={`${lead.account}-${lead.key}`} className="stale-row">
-                  <span>
-                    {lead.client} · {lead.account}
-                  </span>
-                  <span className="meeting-notes">
-                    {businessDaysSince(lead.latestTouchpointTimestamp, now)} business days
-                  </span>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="meeting-notes">No leads need follow-up right now.</p>
-          )}
-        </section>
+        {!selectedAccount ? (
+          <section className="compact-alert">
+            <p className="section-kicker">Needs touch</p>
+            {staleLeads.length ? (
+              <div className="stale-list">
+                {staleLeads.map((lead) => (
+                  <div key={`${lead.account}-${lead.key}`} className="stale-row">
+                    <span>
+                      {lead.client} · {lead.account}
+                    </span>
+                    <span className="meeting-notes">
+                      {businessDaysSince(lead.latestTouchpointTimestamp, now)} business days
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="meeting-notes">No leads need follow-up right now.</p>
+            )}
+          </section>
+        ) : null}
 
         {selectedAccountDetail ? (
           <section className="card account-focus">
@@ -667,156 +678,158 @@ export default function Page() {
           </section>
         ) : null}
 
-        <section className="dashboard-grid">
-          <article className="card compact-card">
-            <div className="card-heading">
-              <div>
-                <p className="section-kicker">New</p>
-                <h2>Add meeting</h2>
+        {!selectedAccount ? (
+          <section className="dashboard-grid">
+            <article className="card compact-card">
+              <div className="card-heading">
+                <div>
+                  <p className="section-kicker">New</p>
+                  <h2>Add meeting</h2>
+                </div>
               </div>
+
+              <form className="meeting-form compact-form" onSubmit={handleSubmit}>
+                <select
+                  required
+                  value={form.account}
+                  onChange={(event) => handleAccountChange(event.target.value)}
+                >
+                  <option value="">Select account</option>
+                  {masterAccounts.map((account) => (
+                    <option key={account} value={account}>
+                      {account}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  required
+                  value={selectedAccountLeads.some((lead) => lead.client === form.client) ? form.client : "__new__"}
+                  onChange={(event) => handleLeadChange(event.target.value)}
+                  disabled={!form.account}
+                >
+                  <option value="">{form.account ? "Select lead" : "Select account first"}</option>
+                  {selectedAccountLeads.map((lead) => (
+                    <option key={lead.key} value={lead.client}>
+                      {lead.client}
+                    </option>
+                  ))}
+                  {form.account ? <option value="__new__">Add new lead</option> : null}
+                </select>
+                {!selectedAccountLeads.some((lead) => lead.client === form.client) ? (
+                  <input
+                    required
+                    value={form.client}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, client: event.target.value }))
+                    }
+                    placeholder="New lead name"
+                  />
+                ) : null}
+                <input
+                  value={form.role}
+                  onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
+                  placeholder="Title"
+                />
+                <input
+                  value={form.email}
+                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
+                  placeholder="Email"
+                  type="email"
+                />
+                <div className="split-fields">
+                  <input
+                    required
+                    type="date"
+                    value={form.meetingDate}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, meetingDate: event.target.value }))
+                    }
+                  />
+                  <input
+                    required
+                    type="time"
+                    value={form.meetingTime}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, meetingTime: event.target.value }))
+                    }
+                  />
+                </div>
+                <select
+                  value={form.touchpointType}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      touchpointType: event.target.value as NonNullable<SheetMeeting["touchpointType"]>
+                    }))
+                  }
+                >
+                  <option value="Meeting">Meeting</option>
+                  <option value="Email outreach">Email outreach</option>
+                </select>
+                <textarea
+                  rows={3}
+                  value={form.meetingNotes}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, meetingNotes: event.target.value }))
+                  }
+                  placeholder="Notes"
+                />
+                <button className="primary-button" type="submit" disabled={isPending}>
+                  {isPending ? "Saving..." : "Add"}
+                </button>
+              </form>
+            </article>
+
+            <div className="stack-column">
+              <article className="card list-card">
+                <div className="card-heading">
+                  <div>
+                    <p className="section-kicker">Active</p>
+                    <h2>Next 7 days</h2>
+                  </div>
+                </div>
+
+                <div className="meeting-list">
+                  {activeMeetings.length ? (
+                    activeMeetings.map((meeting) => (
+                      <MeetingEditor
+                        key={meeting.id}
+                        meeting={meeting}
+                        onSave={saveMeeting}
+                        onDelete={handleDelete}
+                      />
+                    ))
+                  ) : (
+                    <div className="empty-state">No meetings scheduled in the next 7 days.</div>
+                  )}
+                </div>
+              </article>
+
+              <article className="card list-card archive-card">
+                <div className="card-heading">
+                  <div>
+                    <p className="section-kicker">Archive</p>
+                    <h2>Past meetings</h2>
+                  </div>
+                </div>
+
+                <div className="meeting-list">
+                  {archivedMeetings.length ? (
+                    archivedMeetings.map((meeting) => (
+                      <ArchivedMeeting
+                        key={meeting.id}
+                        meeting={meeting}
+                        hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
+                      />
+                    ))
+                  ) : (
+                    <div className="empty-state">No archived meetings yet.</div>
+                  )}
+                </div>
+              </article>
             </div>
-
-            <form className="meeting-form compact-form" onSubmit={handleSubmit}>
-              <select
-                required
-                value={form.account}
-                onChange={(event) => handleAccountChange(event.target.value)}
-              >
-                <option value="">Select account</option>
-                {masterAccounts.map((account) => (
-                  <option key={account} value={account}>
-                    {account}
-                  </option>
-                ))}
-              </select>
-              <select
-                required
-                value={selectedAccountLeads.some((lead) => lead.client === form.client) ? form.client : "__new__"}
-                onChange={(event) => handleLeadChange(event.target.value)}
-                disabled={!form.account}
-              >
-                <option value="">{form.account ? "Select lead" : "Select account first"}</option>
-                {selectedAccountLeads.map((lead) => (
-                  <option key={lead.key} value={lead.client}>
-                    {lead.client}
-                  </option>
-                ))}
-                {form.account ? <option value="__new__">Add new lead</option> : null}
-              </select>
-              {!selectedAccountLeads.some((lead) => lead.client === form.client) ? (
-                <input
-                  required
-                  value={form.client}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, client: event.target.value }))
-                  }
-                  placeholder="New lead name"
-                />
-              ) : null}
-              <input
-                value={form.role}
-                onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
-                placeholder="Title"
-              />
-              <input
-                value={form.email}
-                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                placeholder="Email"
-                type="email"
-              />
-              <div className="split-fields">
-                <input
-                  required
-                  type="date"
-                  value={form.meetingDate}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, meetingDate: event.target.value }))
-                  }
-                />
-                <input
-                  required
-                  type="time"
-                  value={form.meetingTime}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, meetingTime: event.target.value }))
-                  }
-                />
-              </div>
-              <select
-                value={form.touchpointType}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    touchpointType: event.target.value as NonNullable<SheetMeeting["touchpointType"]>
-                  }))
-                }
-              >
-                <option value="Meeting">Meeting</option>
-                <option value="Email outreach">Email outreach</option>
-              </select>
-              <textarea
-                rows={3}
-                value={form.meetingNotes}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, meetingNotes: event.target.value }))
-                }
-                placeholder="Notes"
-              />
-              <button className="primary-button" type="submit" disabled={isPending}>
-                {isPending ? "Saving..." : "Add"}
-              </button>
-            </form>
-          </article>
-
-          <div className="stack-column">
-            <article className="card list-card">
-              <div className="card-heading">
-                <div>
-                  <p className="section-kicker">Active</p>
-                  <h2>Next 7 days</h2>
-                </div>
-              </div>
-
-              <div className="meeting-list">
-                {activeMeetings.length ? (
-                  activeMeetings.map((meeting) => (
-                    <MeetingEditor
-                      key={meeting.id}
-                      meeting={meeting}
-                      onSave={saveMeeting}
-                      onDelete={handleDelete}
-                    />
-                  ))
-                ) : (
-                  <div className="empty-state">No meetings scheduled in the next 7 days.</div>
-                )}
-              </div>
-            </article>
-
-            <article className="card list-card archive-card">
-              <div className="card-heading">
-                <div>
-                  <p className="section-kicker">Archive</p>
-                  <h2>Past meetings</h2>
-                </div>
-              </div>
-
-              <div className="meeting-list">
-                {archivedMeetings.length ? (
-                  archivedMeetings.map((meeting) => (
-                    <ArchivedMeeting
-                      key={meeting.id}
-                      meeting={meeting}
-                      hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
-                    />
-                  ))
-                ) : (
-                  <div className="empty-state">No archived meetings yet.</div>
-                )}
-              </div>
-            </article>
-          </div>
-        </section>
+          </section>
+        ) : null}
       </main>
     </>
   );

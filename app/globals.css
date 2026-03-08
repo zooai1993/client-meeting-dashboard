@@ -71,6 +71,30 @@ button {
   align-items: end;
 }
 
+.topbar-main,
+.topbar-side {
+  display: grid;
+  gap: 10px;
+}
+
+.topbar-side {
+  justify-items: end;
+}
+
+.home-button {
+  justify-self: start;
+  border: 1px solid var(--line);
+  background: var(--panel-soft);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.account-picker {
+  min-width: 280px;
+}
+
 .eyebrow,
 .section-kicker,
 .meeting-status,
@@ -167,6 +191,16 @@ h2 {
   grid-template-columns: 320px minmax(0, 1fr);
   gap: 16px;
   margin-top: 14px;
+}
+
+.account-focus {
+  margin-top: 14px;
+}
+
+.account-focus-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+  gap: 16px;
 }
 
 .stack-column {
@@ -353,10 +387,15 @@ textarea {
 
 @media (max-width: 920px) {
   .topbar,
-  .dashboard-grid {
+  .dashboard-grid,
+  .account-focus-grid {
     display: grid;
     grid-template-columns: 1fr;
     align-items: stretch;
+  }
+
+  .topbar-side {
+    justify-items: stretch;
   }
 }
 
