@@ -388,6 +388,10 @@ h2 {
   padding: 0;
 }
 
+.danger-button {
+  color: #ef8f8f;
+}
+
 .add-contact-button {
   justify-self: start;
 }

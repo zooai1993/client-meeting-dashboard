@@ -646,6 +646,45 @@ export default function Page() {
     });
   }
 
+  function handleDeleteLead(account: string, client: string) {
+    const normalizedAccount = account.trim().toLowerCase();
+    const normalizedClient = client.trim().toLowerCase();
+
+    startTransition(() => {
+      setMeetings((current) =>
+        current
+          .map((meeting) => {
+            if (meeting.account.trim().toLowerCase() !== normalizedAccount) {
+              return meeting;
+            }
+
+            const remainingContacts = getMeetingContacts(meeting).filter(
+              (contact) => contact.client.trim().toLowerCase() !== normalizedClient
+            );
+
+            if (remainingContacts.length === getMeetingContacts(meeting).length) {
+              return meeting;
+            }
+
+            if (!remainingContacts.length) {
+              return null;
+            }
+
+            const primaryContact = remainingContacts[0];
+            return {
+              ...meeting,
+              client: primaryContact.client,
+              role: primaryContact.role,
+              email: primaryContact.email,
+              phone: primaryContact.phone,
+              contacts: remainingContacts
+            };
+          })
+          .filter(Boolean) as SheetMeeting[]
+      );
+    });
+  }
+
   function openImportPicker() {
     importInputRef.current?.click();
   }
@@ -884,6 +923,13 @@ export default function Page() {
                           Latest touchpoint: {lead.latestTouchpointType} on {lead.latestTouchpointDate}
                         </p>
                         <p className="meeting-notes">{lead.meetingCount} touchpoints</p>
+                        <button
+                          className="text-button danger-button"
+                          type="button"
+                          onClick={() => handleDeleteLead(selectedAccountDetail.account, lead.client)}
+                        >
+                          Delete lead
+                        </button>
                       </div>
                     </details>
                   ))
