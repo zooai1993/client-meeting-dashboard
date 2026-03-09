@@ -153,12 +153,22 @@ function readStoredDraft() {
     const parsed = JSON.parse(raw) as Partial<typeof defaultForm> & {
       contacts?: ContactForm[];
     };
+    const normalizedContacts = parsed.contacts?.length
+      ? parsed.contacts
+          .map((contact) => ({ ...createEmptyContact(), ...contact }))
+          .filter(
+            (contact, index) =>
+              index === 0 ||
+              contact.client.trim() ||
+              contact.role.trim() ||
+              contact.email.trim() ||
+              contact.phone.trim()
+          )
+      : [createEmptyContact()];
     return {
       ...defaultForm,
       ...parsed,
-      contacts: parsed.contacts?.length
-        ? parsed.contacts.map((contact) => ({ ...createEmptyContact(), ...contact }))
-        : [createEmptyContact()]
+      contacts: normalizedContacts.length ? normalizedContacts : [createEmptyContact()]
     } as typeof defaultForm;
   } catch {
     return defaultForm;
