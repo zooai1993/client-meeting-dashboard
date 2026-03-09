@@ -42,6 +42,11 @@ const DAILY_QUOTES = [
   { quote: "I never lose. I either win or learn.", author: "Nelson Mandela" },
   { quote: "If you can dream it, you can do it.", author: "Walt Disney" }
 ] as const;
+const ACCOUNT_ALIAS_MAP = new Map<string, string>([
+  ["je dunn", "JE Dunn Construction"],
+  ["vitamin shoppe", "The Vitamin Shoppe"],
+  ["tms", "tms"]
+]);
 
 function createEmptyContact(): ContactForm {
   return {
@@ -306,6 +311,15 @@ export default function Page() {
   const selectedAccountLeads = useMemo(
     () => accountLeads.find((account) => account.account === form.account)?.leads ?? [],
     [accountLeads, form.account]
+  );
+  const selectedAccountMeetings = useMemo(
+    () =>
+      selectedAccount
+        ? [...sortedMeetings]
+            .filter((meeting) => accountMatches(meeting.account, selectedAccount))
+            .sort((a, b) => getMeetingDate(b).getTime() - getMeetingDate(a).getTime())
+        : [],
+    [selectedAccount, sortedMeetings]
   );
   const scheduledMeetings = useMemo(
     () =>
@@ -938,19 +952,27 @@ export default function Page() {
                 )}
               </div>
               <div className="meeting-list">
-                {scheduledMeetings.filter((meeting) => meeting.account === selectedAccountDetail.account).length ? (
-                  scheduledMeetings
-                    .filter((meeting) => meeting.account === selectedAccountDetail.account)
-                    .map((meeting) => (
+                {selectedAccountMeetings.length ? (
+                  selectedAccountMeetings.map((meeting) =>
+                    isArchivedMeeting(meeting, now) ? (
+                      <ArchivedMeetingEditor
+                        key={`account-archived-${meeting.id}`}
+                        meeting={meeting}
+                        onSave={saveMeeting}
+                        onDelete={handleDelete}
+                        hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
+                      />
+                    ) : (
                       <MeetingEditor
                         key={`account-${meeting.id}`}
                         meeting={meeting}
                         onSave={saveMeeting}
                         onDelete={handleDelete}
                       />
-                    ))
+                    )
+                  )
                 ) : (
-                  <div className="empty-state">No upcoming meetings for this account.</div>
+                  <div className="empty-state">No meetings for this account.</div>
                 )}
               </div>
             </div>
@@ -1576,18 +1598,12 @@ function buildAccountLeads(
   >();
 
   const masterIndex = new Map(allAccounts.map((account) => [normalizeAccountName(account), account]));
-  const aliasMap = new Map<string, string>([
-    ["je dunn", "JE Dunn Construction"],
-    ["vitamin shoppe", "The Vitamin Shoppe"],
-    ["tms", "tms"]
-  ]);
-
   allAccounts.forEach((account) => {
     accountMap.set(account, new Map());
   });
 
   meetings.forEach((meeting) => {
-    const accountKey = resolveAccountName(meeting.account.trim() || "Unknown account", masterIndex, aliasMap);
+    const accountKey = resolveAccountName(meeting.account.trim() || "Unknown account", masterIndex, ACCOUNT_ALIAS_MAP);
     const accountLeads = accountMap.get(accountKey) ?? new Map();
     const timestamp = getMeetingDate(meeting).getTime();
     getMeetingContacts(meeting).forEach((contact) => {
@@ -1771,6 +1787,14 @@ function resolveAccountName(
   }
 
   return account;
+}
+
+function accountMatches(meetingAccount: string, selectedAccount: string) {
+  const masterIndex = new Map(masterAccounts.map((account) => [normalizeAccountName(account), account]));
+  return (
+    resolveAccountName(meetingAccount, masterIndex, ACCOUNT_ALIAS_MAP) ===
+    resolveAccountName(selectedAccount, masterIndex, ACCOUNT_ALIAS_MAP)
+  );
 }
 
 function businessDaysSince(timestamp: number, now: Date) {
