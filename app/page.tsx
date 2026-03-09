@@ -913,9 +913,11 @@ export default function Page() {
                 <div className="meeting-list">
                   {archivedMeetings.length ? (
                     archivedMeetings.map((meeting) => (
-                      <ArchivedMeeting
+                      <ArchivedMeetingEditor
                         key={meeting.id}
                         meeting={meeting}
+                        onSave={saveMeeting}
+                        onDelete={handleDelete}
                         hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
                       />
                     ))
@@ -1071,27 +1073,122 @@ function MeetingEditor({
   );
 }
 
-function ArchivedMeeting({
+function ArchivedMeetingEditor({
   meeting,
+  onSave,
+  onDelete,
   hasUpcomingFollowUp
 }: {
   meeting: SheetMeeting;
+  onSave: (id: string, draft: MeetingDraft) => void;
+  onDelete: (id: string) => void;
   hasUpcomingFollowUp: boolean;
 }) {
+  const [draft, setDraft] = useState<MeetingDraft>({
+    meetingDate: meeting.meetingDate,
+    meetingTime: meeting.meetingTime,
+    touchpointType: meeting.touchpointType ?? "Meeting",
+    meetingNotes: meeting.meetingNotes,
+    nextSteps: meeting.nextSteps,
+    status: meeting.status
+  });
+
+  useEffect(() => {
+    setDraft({
+      meetingDate: meeting.meetingDate,
+      meetingTime: meeting.meetingTime,
+      touchpointType: meeting.touchpointType ?? "Meeting",
+      meetingNotes: meeting.meetingNotes,
+      nextSteps: meeting.nextSteps,
+      status: meeting.status
+    });
+  }, [
+    meeting.meetingDate,
+    meeting.meetingNotes,
+    meeting.meetingTime,
+    meeting.nextSteps,
+    meeting.status,
+    meeting.touchpointType
+  ]);
+
   return (
-    <article className="meeting-item archived-item">
-      <div className="meeting-meta">
+    <details className="meeting-item archived-item archived-editor">
+      <summary className="archived-summary">
         <div>
           <p className="meeting-client">{meeting.account}</p>
           <p className="meeting-contact">{meeting.client}</p>
+          <p className="meeting-datetime archived-datetime">{formatMeetingDate(meeting)}</p>
         </div>
-        <span className="archive-chip">Archived</span>
+        <div className="archived-summary-meta">
+          {hasUpcomingFollowUp ? <span className="follow-up-chip">Follow-up booked</span> : null}
+          <span className="archive-chip">Archived</span>
+        </div>
+      </summary>
+
+      <div className="archived-body">
+        <p className="meeting-notes">Latest touchpoint: {meeting.touchpointType ?? "Meeting"}</p>
+        <div className="editor-grid">
+          <input
+            type="date"
+            value={draft.meetingDate}
+            onChange={(event) => setDraft((current) => ({ ...current, meetingDate: event.target.value }))}
+          />
+          <input
+            type="time"
+            value={draft.meetingTime}
+            onChange={(event) => setDraft((current) => ({ ...current, meetingTime: event.target.value }))}
+          />
+          <select
+            value={draft.touchpointType ?? "Meeting"}
+            onChange={(event) =>
+              setDraft((current) => ({
+                ...current,
+                touchpointType: event.target.value as NonNullable<SheetMeeting["touchpointType"]>
+              }))
+            }
+          }
+        >
+            <option value="Meeting">Meeting</option>
+            <option value="Email outreach">Email outreach</option>
+          </select>
+        </div>
+
+        <div className="editor-grid editor-grid-status">
+          <select
+            value={draft.status}
+            onChange={(event) =>
+              setDraft((current) => ({ ...current, status: event.target.value as MeetingStatus }))
+            }
+          >
+            <option value="Scheduled">Scheduled</option>
+            <option value="Completed">Completed</option>
+            <option value="Needs follow-up">Needs follow-up</option>
+          </select>
+        </div>
+
+        <textarea
+          rows={2}
+          value={draft.meetingNotes}
+          onChange={(event) => setDraft((current) => ({ ...current, meetingNotes: event.target.value }))}
+          placeholder="Notes"
+        />
+        <textarea
+          rows={2}
+          value={draft.nextSteps}
+          onChange={(event) => setDraft((current) => ({ ...current, nextSteps: event.target.value }))}
+          placeholder="Next steps"
+        />
+
+        <div className="item-footer">
+          <button className="primary-button" type="button" onClick={() => onSave(meeting.id, draft)}>
+            Save
+          </button>
+          <button className="ghost-button" type="button" onClick={() => onDelete(meeting.id)}>
+            Delete
+          </button>
+        </div>
       </div>
-      <p className="meeting-datetime">{formatMeetingDate(meeting)}</p>
-      <p className="meeting-notes">Latest touchpoint: {meeting.touchpointType ?? "Meeting"}</p>
-      <p className="meeting-notes">{meeting.meetingNotes || "No notes."}</p>
-      {hasUpcomingFollowUp ? <p className="follow-up-chip">Follow-up booked</p> : null}
-    </article>
+    </details>
   );
 }
 
