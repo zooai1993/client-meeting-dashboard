@@ -85,6 +85,10 @@ button {
   justify-content: flex-end;
 }
 
+.topbar-side .countdown-card {
+  width: min(280px, 100%);
+}
+
 .home-button {
   justify-self: start;
   border: 1px solid var(--line);
@@ -154,6 +158,13 @@ h2 {
   margin-top: 8px;
 }
 
+.quote-inline {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  max-width: 42rem;
+}
+
 .stat-strip {
   display: flex;
   gap: 10px;
@@ -193,19 +204,20 @@ h2 {
   background: rgba(17, 21, 19, 0.72);
 }
 
-.landing-meta {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-  margin-top: 10px;
-}
-
-.quote-strip,
 .countdown-card {
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
   background: rgba(17, 21, 19, 0.72);
+}
+
+.compact-countdown {
+  padding: 10px 12px;
+  opacity: 0.88;
+}
+
+.compact-countdown .section-kicker {
+  font-size: 0.64rem;
 }
 
 .quote-text {
@@ -218,10 +230,6 @@ h2 {
   margin-top: 6px;
 }
 
-.quote-strip-wide {
-  text-align: center;
-}
-
 .countdown-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(56px, 1fr));
@@ -230,9 +238,19 @@ h2 {
   text-align: center;
 }
 
+.compact-countdown .countdown-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 6px;
+}
+
 .countdown-grid strong {
   display: block;
   font-size: 1.1rem;
+}
+
+.compact-countdown .countdown-grid strong {
+  font-size: 0.94rem;
 }
 
 .countdown-grid span {
@@ -240,6 +258,10 @@ h2 {
   font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
+}
+
+.compact-countdown .countdown-grid span {
+  font-size: 0.64rem;
 }
 
 .stale-list {
@@ -423,6 +445,30 @@ textarea {
   font-size: 0.92rem;
 }
 
+.meeting-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.meeting-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--muted);
+  font-size: 0.84rem;
+  text-decoration: none;
+}
+
+.meeting-link:hover {
+  color: var(--text);
+  border-color: rgba(25, 195, 125, 0.35);
+}
+
 .meeting-status,
 .archive-chip,
 .follow-up-chip {
@@ -457,8 +503,7 @@ textarea {
 @media (max-width: 920px) {
   .topbar,
   .dashboard-grid,
-  .account-focus-grid,
-  .landing-meta {
+  .account-focus-grid {
     display: grid;
     grid-template-columns: 1fr;
     align-items: stretch;

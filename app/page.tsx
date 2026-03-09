@@ -611,6 +611,12 @@ export default function Page() {
                 ? "Focused account view with leads, notes, and upcoming meetings."
                 : "Scheduled meetings coming up in the next 7 days."}
             </p>
+            {!selectedAccount ? (
+              <div className="quote-inline">
+                <p className="quote-text">"{dailyQuote.quote}"</p>
+                <p className="meeting-notes quote-author">{dailyQuote.author}</p>
+              </div>
+            ) : null}
           </div>
           <div className="topbar-side">
             <div className="account-picker">
@@ -634,6 +640,29 @@ export default function Page() {
               <button className="ghost-button import-button" type="button" onClick={openImportPicker}>
                 Import CSV
               </button>
+            ) : null}
+            {!selectedAccount ? (
+              <div className="countdown-card compact-countdown">
+                <p className="section-kicker">Quarter closes</p>
+                <div className="countdown-grid">
+                  <div>
+                    <strong>{quarterCountdown.days}</strong>
+                    <span>Days</span>
+                  </div>
+                  <div>
+                    <strong>{quarterCountdown.hours}</strong>
+                    <span>Hours</span>
+                  </div>
+                  <div>
+                    <strong>{quarterCountdown.minutes}</strong>
+                    <span>Minutes</span>
+                  </div>
+                  <div>
+                    <strong>{quarterCountdown.seconds}</strong>
+                    <span>Seconds</span>
+                  </div>
+                </div>
+              </div>
             ) : null}
             <div className="stat-strip">
               <StatCard label="Upcoming" value={upcomingCount} />
@@ -667,37 +696,6 @@ export default function Page() {
         <p className="status-line">{calendarStatus}</p>
         <p className="status-line">{gmailStatus}</p>
         {!selectedAccount && importStatus ? <p className="status-line">{importStatus}</p> : null}
-
-        {!selectedAccount ? (
-          <section className="landing-meta">
-            <div className="quote-strip quote-strip-wide">
-              <p className="section-kicker">Today</p>
-              <p className="quote-text">"{dailyQuote.quote}"</p>
-              <p className="meeting-notes quote-author">{dailyQuote.author}</p>
-            </div>
-            <div className="countdown-card">
-              <p className="section-kicker">Quarter closes</p>
-              <div className="countdown-grid">
-                <div>
-                  <strong>{quarterCountdown.days}</strong>
-                  <span>Days</span>
-                </div>
-                <div>
-                  <strong>{quarterCountdown.hours}</strong>
-                  <span>Hours</span>
-                </div>
-                <div>
-                  <strong>{quarterCountdown.minutes}</strong>
-                  <span>Minutes</span>
-                </div>
-                <div>
-                  <strong>{quarterCountdown.seconds}</strong>
-                  <span>Seconds</span>
-                </div>
-              </div>
-            </div>
-          </section>
-        ) : null}
 
         {!selectedAccount ? (
           <section className="compact-alert">
@@ -952,6 +950,7 @@ function MeetingEditor({
   onSave: (id: string, draft: MeetingDraft) => void;
   onDelete: (id: string) => void;
 }) {
+  const recentUpdateLinks = getRecentUpdateLinks(meeting);
   const [draft, setDraft] = useState<MeetingDraft>({
     meetingDate: meeting.meetingDate,
     meetingTime: meeting.meetingTime,
@@ -992,6 +991,22 @@ function MeetingEditor({
       </div>
 
       <p className="meeting-datetime">{formatMeetingDate(meeting)}</p>
+
+      {recentUpdateLinks.length ? (
+        <div className="meeting-links">
+          {recentUpdateLinks.map((link) => (
+            <a
+              key={link.href}
+              className="meeting-link"
+              href={link.href}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {link.label}
+            </a>
+          ))}
+        </div>
+      ) : null}
 
       <div className="editor-grid">
         <input
@@ -1125,6 +1140,31 @@ function statusClassName(status: MeetingStatus) {
   }
 
   return "status-completed";
+}
+
+function getRecentUpdateLinks(meeting: SheetMeeting) {
+  const links: Array<{ label: string; href: string }> = [];
+  const now = new Date();
+  const oneYearAgo = new Date(now);
+  oneYearAgo.setFullYear(now.getFullYear() - 1);
+  const afterDate = oneYearAgo.toISOString().slice(0, 10);
+  links.push({
+    label: "Company update",
+    href: `https://news.google.com/search?q=${encodeURIComponent(
+      `${meeting.account} latest news after:${afterDate}`
+    )}`
+  });
+
+  if (meeting.client.trim()) {
+    links.push({
+      label: "Lead update",
+      href: `https://www.google.com/search?q=${encodeURIComponent(
+        `${meeting.client} ${meeting.account} after:${afterDate}`
+      )}`
+    });
+  }
+
+  return links.slice(0, 2);
 }
 
 function isArchivedMeeting(meeting: SheetMeeting, now: Date) {
