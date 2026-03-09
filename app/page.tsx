@@ -1551,7 +1551,8 @@ function getRecentUpdateLinks(meeting: SheetMeeting) {
 }
 
 function isArchivedMeeting(meeting: SheetMeeting, now: Date) {
-  return getMeetingDate(meeting) < now && meeting.status !== "Needs follow-up";
+  const archiveCutoff = new Date(getMeetingDate(meeting).getTime() + 60 * 60 * 1000);
+  return archiveCutoff < now && meeting.status !== "Needs follow-up";
 }
 
 function isInNextSevenDays(meeting: SheetMeeting, now: Date) {
