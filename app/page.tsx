@@ -53,9 +53,13 @@ function createEmptyContact(): ContactForm {
   };
 }
 
+function createEmptyContacts(count = 3) {
+  return Array.from({ length: count }, () => createEmptyContact());
+}
+
 const defaultForm = {
   account: "",
-  contacts: [createEmptyContact()],
+  contacts: createEmptyContacts(),
   meetingDate: "",
   meetingTime: "",
   touchpointType: "Meeting" as NonNullable<SheetMeeting["touchpointType"]>,
@@ -139,7 +143,7 @@ function readStoredDraft() {
       ...parsed,
       contacts: parsed.contacts?.length
         ? parsed.contacts.map((contact) => ({ ...createEmptyContact(), ...contact }))
-        : [createEmptyContact()]
+        : createEmptyContacts()
     } as typeof defaultForm;
   } catch {
     return defaultForm;
@@ -352,7 +356,7 @@ export default function Page() {
     setForm((current) => ({
       ...current,
       account,
-      contacts: [createEmptyContact()]
+      contacts: createEmptyContacts()
     }));
   }
 
@@ -393,7 +397,7 @@ export default function Page() {
       ...current,
       contacts:
         current.contacts.length === 1
-          ? [createEmptyContact()]
+          ? createEmptyContacts()
           : current.contacts.filter((_, contactIndex) => contactIndex !== index)
     }));
   }
