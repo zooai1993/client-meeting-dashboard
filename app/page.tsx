@@ -143,6 +143,7 @@ export default function Page() {
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(defaultForm);
   const [selectedAccount, setSelectedAccount] = useState("");
+  const [showArchive, setShowArchive] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
@@ -601,7 +602,15 @@ export default function Page() {
         />
         <section className="topbar">
           <div className="topbar-main">
-            <button className="home-button" type="button" onClick={() => setSelectedAccount("")} aria-label="Go home">
+            <button
+              className="home-button"
+              type="button"
+              onClick={() => {
+                setSelectedAccount("");
+                setShowArchive(false);
+              }}
+              aria-label="Go home"
+            >
               Home
             </button>
             <p className="eyebrow">OpenAI Accounts</p>
@@ -639,6 +648,15 @@ export default function Page() {
             {!selectedAccount ? (
               <button className="ghost-button import-button" type="button" onClick={openImportPicker}>
                 Import CSV
+              </button>
+            ) : null}
+            {!selectedAccount ? (
+              <button
+                className="ghost-button import-button"
+                type="button"
+                onClick={() => setShowArchive((current) => !current)}
+              >
+                {showArchive ? "Hide Archive" : "View Archive"}
               </button>
             ) : null}
             {!selectedAccount ? (
@@ -902,30 +920,32 @@ export default function Page() {
                 </div>
               </article>
 
-              <article className="card list-card archive-card">
-                <div className="card-heading">
-                  <div>
-                    <p className="section-kicker">Archive</p>
-                    <h2>Past meetings</h2>
+              {showArchive ? (
+                <article className="card list-card archive-card">
+                  <div className="card-heading">
+                    <div>
+                      <p className="section-kicker">Archive</p>
+                      <h2>Past meetings</h2>
+                    </div>
                   </div>
-                </div>
 
-                <div className="meeting-list">
-                  {archivedMeetings.length ? (
-                    archivedMeetings.map((meeting) => (
-                      <ArchivedMeetingEditor
-                        key={meeting.id}
-                        meeting={meeting}
-                        onSave={saveMeeting}
-                        onDelete={handleDelete}
-                        hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
-                      />
-                    ))
-                  ) : (
-                    <div className="empty-state">No archived meetings yet.</div>
-                  )}
-                </div>
-              </article>
+                  <div className="meeting-list">
+                    {archivedMeetings.length ? (
+                      archivedMeetings.map((meeting) => (
+                        <ArchivedMeetingEditor
+                          key={meeting.id}
+                          meeting={meeting}
+                          onSave={saveMeeting}
+                          onDelete={handleDelete}
+                          hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
+                        />
+                      ))
+                    ) : (
+                      <div className="empty-state">No archived meetings yet.</div>
+                    )}
+                  </div>
+                </article>
+              ) : null}
             </div>
           </section>
         ) : null}
