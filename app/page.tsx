@@ -20,6 +20,13 @@ type MeetingDraft = Pick<
   "meetingDate" | "meetingTime" | "touchpointType" | "meetingNotes" | "nextSteps" | "status"
 >;
 type DashboardView = "upcoming" | "follow-up" | "archive";
+type ContactForm = {
+  selectedClient: string;
+  client: string;
+  role: string;
+  email: string;
+  phone: string;
+};
 
 const STORAGE_KEY = "client-meeting-dashboard";
 const DRAFT_STORAGE_KEY = "client-meeting-dashboard-draft";
@@ -36,11 +43,19 @@ const DAILY_QUOTES = [
   { quote: "If you can dream it, you can do it.", author: "Walt Disney" }
 ] as const;
 
+function createEmptyContact(): ContactForm {
+  return {
+    selectedClient: "__new__",
+    client: "",
+    role: "",
+    email: "",
+    phone: ""
+  };
+}
+
 const defaultForm = {
   account: "",
-  client: "",
-  role: "",
-  email: "",
+  contacts: [createEmptyContact()],
   meetingDate: "",
   meetingTime: "",
   touchpointType: "Meeting" as NonNullable<SheetMeeting["touchpointType"]>,
@@ -116,7 +131,16 @@ function readStoredDraft() {
   }
 
   try {
-    return { ...defaultForm, ...JSON.parse(raw) } as typeof defaultForm;
+    const parsed = JSON.parse(raw) as Partial<typeof defaultForm> & {
+      contacts?: ContactForm[];
+    };
+    return {
+      ...defaultForm,
+      ...parsed,
+      contacts: parsed.contacts?.length
+        ? parsed.contacts.map((contact) => ({ ...createEmptyContact(), ...contact }))
+        : [createEmptyContact()]
+    } as typeof defaultForm;
   } catch {
     return defaultForm;
   }
@@ -248,7 +272,6 @@ export default function Page() {
     () => accountLeads.find((account) => account.account === form.account)?.leads ?? [],
     [accountLeads, form.account]
   );
-  const isNewClientEntry = !selectedAccountLeads.some((lead) => lead.client === form.client);
   const scheduledMeetings = useMemo(
     () =>
       sortedMeetings.filter(
@@ -329,48 +352,76 @@ export default function Page() {
     setForm((current) => ({
       ...current,
       account,
-      client: "",
-      role: "",
-      email: ""
+      contacts: [createEmptyContact()]
     }));
   }
 
-  function handleLeadChange(client: string) {
+  function updateContact(index: number, updates: Partial<ContactForm>) {
+    setForm((current) => ({
+      ...current,
+      contacts: current.contacts.map((contact, contactIndex) =>
+        contactIndex === index ? { ...contact, ...updates } : contact
+      )
+    }));
+  }
+
+  function handleLeadChange(index: number, client: string) {
     if (client === "__new__") {
-      setForm((current) => ({
-        ...current,
-        client: "",
-        role: "",
-        email: ""
-      }));
+      updateContact(index, createEmptyContact());
       return;
     }
 
     const selectedLead = selectedAccountLeads.find((lead) => lead.client === client);
-
-    setForm((current) => ({
-      ...current,
+    updateContact(index, {
+      selectedClient: client,
       client,
       role: selectedLead?.role ?? "",
-      email: selectedLead?.email ?? ""
+      email: selectedLead?.email ?? "",
+      phone: selectedLead?.phone ?? ""
+    });
+  }
+
+  function addContact() {
+    setForm((current) => ({
+      ...current,
+      contacts: [...current.contacts, createEmptyContact()]
+    }));
+  }
+
+  function removeContact(index: number) {
+    setForm((current) => ({
+      ...current,
+      contacts:
+        current.contacts.length === 1
+          ? [createEmptyContact()]
+          : current.contacts.filter((_, contactIndex) => contactIndex !== index)
     }));
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const account = form.account.trim();
-    const client = form.client.trim();
-    if (!account || !client) {
+    const contacts = form.contacts
+      .map((contact) => ({
+        ...contact,
+        client: contact.client.trim(),
+        role: contact.role.trim(),
+        email: contact.email.trim(),
+        phone: contact.phone.trim()
+      }))
+      .filter((contact) => contact.client);
+
+    if (!account || !contacts.length) {
       return;
     }
 
-    const nextMeeting: SheetMeeting = {
-      id: createId(account, client),
+    const nextMeetings: SheetMeeting[] = contacts.map((contact) => ({
+      id: createId(account, contact.client),
       account,
-      client,
-      role: form.role.trim(),
-      email: form.email.trim(),
-      phone: "",
+      client: contact.client,
+      role: contact.role,
+      email: contact.email,
+      phone: contact.phone,
       meetingDate: form.meetingDate,
       meetingTime: form.meetingTime,
       touchpointType: form.touchpointType,
@@ -378,10 +429,10 @@ export default function Page() {
       nextSteps: "",
       status: "Scheduled",
       source: "Sheet"
-    };
+    }));
 
     startTransition(() => {
-      setMeetings((current) => [...current, nextMeeting]);
+      setMeetings((current) => [...current, ...nextMeetings]);
       setForm(defaultForm);
     });
 
@@ -846,41 +897,69 @@ export default function Page() {
                     </option>
                   ))}
                 </select>
-                <select
-                  required
-                  value={isNewClientEntry ? "__new__" : form.client}
-                  onChange={(event) => handleLeadChange(event.target.value)}
-                  disabled={!form.account}
-                >
-                  <option value="">{form.account ? "Select lead" : "Select account first"}</option>
-                  {selectedAccountLeads.map((lead) => (
-                    <option key={lead.key} value={lead.client}>
-                      {lead.client}
-                    </option>
-                  ))}
-                  {form.account ? <option value="__new__">Add new client</option> : null}
-                </select>
-                {isNewClientEntry ? (
-                  <input
-                    required
-                    value={form.client}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, client: event.target.value }))
-                    }
-                    placeholder="Client name"
-                  />
-                ) : null}
-                <input
-                  value={form.role}
-                  onChange={(event) => setForm((current) => ({ ...current, role: event.target.value }))}
-                  placeholder="Title"
-                />
-                <input
-                  value={form.email}
-                  onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
-                  placeholder="Email"
-                  type="email"
-                />
+                <div className="contact-stack">
+                  {form.contacts.map((contact, index) => {
+                    const isNewClientEntry = contact.selectedClient === "__new__" || !contact.selectedClient;
+                    return (
+                      <div key={`contact-${index}`} className="contact-card">
+                        <div className="contact-card-header">
+                          <p className="section-kicker">Contact {index + 1}</p>
+                          {form.contacts.length > 1 ? (
+                            <button
+                              className="text-button"
+                              type="button"
+                              onClick={() => removeContact(index)}
+                            >
+                              Remove
+                            </button>
+                          ) : null}
+                        </div>
+                        <select
+                          required
+                          value={isNewClientEntry ? "__new__" : contact.selectedClient}
+                          onChange={(event) => handleLeadChange(index, event.target.value)}
+                          disabled={!form.account}
+                        >
+                          <option value="">{form.account ? "Select client" : "Select account first"}</option>
+                          {selectedAccountLeads.map((lead) => (
+                            <option key={lead.key} value={lead.client}>
+                              {lead.client}
+                            </option>
+                          ))}
+                          {form.account ? <option value="__new__">Add new client</option> : null}
+                        </select>
+                        {isNewClientEntry ? (
+                          <input
+                            required
+                            value={contact.client}
+                            onChange={(event) => updateContact(index, { client: event.target.value })}
+                            placeholder="Client name"
+                          />
+                        ) : null}
+                        <input
+                          value={contact.role}
+                          onChange={(event) => updateContact(index, { role: event.target.value })}
+                          placeholder="Title"
+                        />
+                        <input
+                          value={contact.email}
+                          onChange={(event) => updateContact(index, { email: event.target.value })}
+                          placeholder="Email"
+                          type="email"
+                        />
+                        <input
+                          value={contact.phone}
+                          onChange={(event) => updateContact(index, { phone: event.target.value })}
+                          placeholder="Phone"
+                          type="tel"
+                        />
+                      </div>
+                    );
+                  })}
+                  <button className="ghost-button add-contact-button" type="button" onClick={addContact}>
+                    Add another contact
+                  </button>
+                </div>
                 <div className="split-fields">
                   <input
                     required
