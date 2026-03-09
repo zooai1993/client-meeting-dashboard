@@ -177,11 +177,26 @@ h2 {
   border: 1px solid var(--line);
   border-radius: 16px;
   background: var(--panel-soft);
+  text-align: left;
 }
 
 .mini-stat strong {
   display: block;
   font-size: 1.4rem;
+}
+
+.mini-stat-button {
+  cursor: pointer;
+}
+
+.mini-stat-button:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.mini-stat-active {
+  border-color: rgba(25, 195, 125, 0.35);
+  background: rgba(25, 195, 125, 0.1);
 }
 
 .toolbar {

@@ -618,9 +618,11 @@ export default function Page() {
             <p className="headline-copy">
               {selectedAccount
                 ? "Focused account view with leads, notes, and upcoming meetings."
-                : "Scheduled meetings coming up in the next 7 days."}
+                : showArchive
+                  ? "Review and update archived meetings."
+                  : "Scheduled meetings coming up in the next 7 days."}
             </p>
-            {!selectedAccount ? (
+            {!selectedAccount && !showArchive ? (
               <div className="quote-inline">
                 <p className="quote-text">"{dailyQuote.quote}"</p>
                 <p className="meeting-notes quote-author">{dailyQuote.author}</p>
@@ -635,7 +637,10 @@ export default function Page() {
               <select
                 id="account-view"
                 value={selectedAccount}
-                onChange={(event) => setSelectedAccount(event.target.value)}
+                onChange={(event) => {
+                  setShowArchive(false);
+                  setSelectedAccount(event.target.value);
+                }}
               >
                 <option value="">Select account</option>
                 {accountLeads.map((account) => (
@@ -645,21 +650,12 @@ export default function Page() {
                 ))}
               </select>
             </div>
-            {!selectedAccount ? (
+            {!selectedAccount && !showArchive ? (
               <button className="ghost-button import-button" type="button" onClick={openImportPicker}>
                 Import CSV
               </button>
             ) : null}
-            {!selectedAccount ? (
-              <button
-                className="ghost-button import-button"
-                type="button"
-                onClick={() => setShowArchive((current) => !current)}
-              >
-                {showArchive ? "Hide Archive" : "View Archive"}
-              </button>
-            ) : null}
-            {!selectedAccount ? (
+            {!selectedAccount && !showArchive ? (
               <div className="countdown-card compact-countdown">
                 <p className="section-kicker">Quarter closes</p>
                 <div className="countdown-grid">
@@ -685,7 +681,15 @@ export default function Page() {
             <div className="stat-strip">
               <StatCard label="Upcoming" value={upcomingCount} />
               <StatCard label="Follow-up" value={followUpCount} />
-              <StatCard label="Archived" value={archivedCount} />
+              <StatCard
+                label="Archived"
+                value={archivedCount}
+                onClick={() => {
+                  setSelectedAccount("");
+                  setShowArchive(true);
+                }}
+                active={showArchive}
+              />
             </div>
           </div>
         </section>
@@ -713,9 +717,9 @@ export default function Page() {
 
         <p className="status-line">{calendarStatus}</p>
         <p className="status-line">{gmailStatus}</p>
-        {!selectedAccount && importStatus ? <p className="status-line">{importStatus}</p> : null}
+        {!selectedAccount && !showArchive && importStatus ? <p className="status-line">{importStatus}</p> : null}
 
-        {!selectedAccount ? (
+        {!selectedAccount && !showArchive ? (
           <section className="compact-alert">
             <p className="section-kicker">Needs touch</p>
             {staleLeads.length ? (
@@ -793,7 +797,7 @@ export default function Page() {
           </section>
         ) : null}
 
-        {!selectedAccount ? (
+        {!selectedAccount && !showArchive ? (
           <section className="dashboard-grid">
             <article className="card compact-card">
               <div className="card-heading">
@@ -919,33 +923,33 @@ export default function Page() {
                   )}
                 </div>
               </article>
+            </div>
+          </section>
+        ) : null}
 
-              {showArchive ? (
-                <article className="card list-card archive-card">
-                  <div className="card-heading">
-                    <div>
-                      <p className="section-kicker">Archive</p>
-                      <h2>Past meetings</h2>
-                    </div>
-                  </div>
+        {!selectedAccount && showArchive ? (
+          <section className="card account-focus archive-page">
+            <div className="card-heading">
+              <div>
+                <p className="section-kicker">Archive</p>
+                <h2>Past meetings</h2>
+              </div>
+            </div>
 
-                  <div className="meeting-list">
-                    {archivedMeetings.length ? (
-                      archivedMeetings.map((meeting) => (
-                        <ArchivedMeetingEditor
-                          key={meeting.id}
-                          meeting={meeting}
-                          onSave={saveMeeting}
-                          onDelete={handleDelete}
-                          hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
-                        />
-                      ))
-                    ) : (
-                      <div className="empty-state">No archived meetings yet.</div>
-                    )}
-                  </div>
-                </article>
-              ) : null}
+            <div className="meeting-list">
+              {archivedMeetings.length ? (
+                archivedMeetings.map((meeting) => (
+                  <ArchivedMeetingEditor
+                    key={meeting.id}
+                    meeting={meeting}
+                    onSave={saveMeeting}
+                    onDelete={handleDelete}
+                    hasUpcomingFollowUp={hasUpcomingFollowUp(meeting, meetings, now)}
+                  />
+                ))
+              ) : (
+                <div className="empty-state">No archived meetings yet.</div>
+              )}
             </div>
           </section>
         ) : null}
@@ -954,12 +958,27 @@ export default function Page() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: number }) {
+function StatCard({
+  label,
+  value,
+  onClick,
+  active
+}: {
+  label: string;
+  value: number;
+  onClick?: () => void;
+  active?: boolean;
+}) {
   return (
-    <div className="mini-stat">
+    <button
+      className={`mini-stat ${onClick ? "mini-stat-button" : ""} ${active ? "mini-stat-active" : ""}`}
+      type="button"
+      onClick={onClick}
+      disabled={!onClick}
+    >
       <strong>{value}</strong>
       <span>{label}</span>
-    </div>
+    </button>
   );
 }
 
