@@ -952,6 +952,10 @@ export default function Page() {
                 )}
               </div>
               <div className="meeting-list">
+                <div className="account-meeting-heading">
+                  <p className="section-kicker">All meetings</p>
+                  <p className="meeting-notes">{selectedAccountMeetings.length} total</p>
+                </div>
                 {selectedAccountMeetings.length ? (
                   selectedAccountMeetings.map((meeting) =>
                     isArchivedMeeting(meeting, now) ? (
