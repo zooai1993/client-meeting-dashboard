@@ -1540,7 +1540,7 @@ function getRecentUpdateLinks(meeting: SheetMeeting) {
   const primaryContact = getMeetingContacts(meeting)[0];
   if (primaryContact?.client.trim()) {
     links.push({
-      label: "Lead update",
+      label: "Client update",
       href: `https://www.google.com/search?q=${encodeURIComponent(
         `${primaryContact.client} ${meeting.account} after:${afterDate}`
       )}`
