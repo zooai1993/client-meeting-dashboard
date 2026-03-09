@@ -19,6 +19,7 @@ type MeetingDraft = Pick<
   SheetMeeting,
   "meetingDate" | "meetingTime" | "touchpointType" | "meetingNotes" | "nextSteps" | "status"
 >;
+type DashboardView = "upcoming" | "follow-up" | "archive";
 
 const STORAGE_KEY = "client-meeting-dashboard";
 const DRAFT_STORAGE_KEY = "client-meeting-dashboard-draft";
@@ -143,7 +144,7 @@ export default function Page() {
   const [search, setSearch] = useState("");
   const [form, setForm] = useState(defaultForm);
   const [selectedAccount, setSelectedAccount] = useState("");
-  const [showArchive, setShowArchive] = useState(false);
+  const [activeView, setActiveView] = useState<DashboardView>("upcoming");
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [calendarToken, setCalendarToken] = useState<string | null>(null);
@@ -231,6 +232,7 @@ export default function Page() {
   const now = currentTime;
   const weekMeetings = filteredMeetings.filter((meeting) => isInNextSevenDays(meeting, now));
   const activeMeetings = weekMeetings.filter((meeting) => !isArchivedMeeting(meeting, now));
+  const followUpMeetings = activeMeetings.filter((meeting) => meeting.status === "Needs follow-up");
   const archivedMeetings = [...filteredMeetings]
     .filter((meeting) => isArchivedMeeting(meeting, now))
     .sort((a, b) => getMeetingDate(b).getTime() - getMeetingDate(a).getTime());
@@ -607,7 +609,7 @@ export default function Page() {
               type="button"
               onClick={() => {
                 setSelectedAccount("");
-                setShowArchive(false);
+                setActiveView("upcoming");
               }}
               aria-label="Go home"
             >
@@ -618,11 +620,13 @@ export default function Page() {
             <p className="headline-copy">
               {selectedAccount
                 ? "Focused account view with leads, notes, and upcoming meetings."
-                : showArchive
+                : activeView === "archive"
                   ? "Review and update archived meetings."
+                  : activeView === "follow-up"
+                    ? "Meetings that still need follow-up."
                   : "Scheduled meetings coming up in the next 7 days."}
             </p>
-            {!selectedAccount && !showArchive ? (
+            {!selectedAccount && activeView === "upcoming" ? (
               <div className="quote-inline">
                 <p className="quote-text">"{dailyQuote.quote}"</p>
                 <p className="meeting-notes quote-author">{dailyQuote.author}</p>
@@ -638,7 +642,7 @@ export default function Page() {
                 id="account-view"
                 value={selectedAccount}
                 onChange={(event) => {
-                  setShowArchive(false);
+                  setActiveView("upcoming");
                   setSelectedAccount(event.target.value);
                 }}
               >
@@ -650,12 +654,12 @@ export default function Page() {
                 ))}
               </select>
             </div>
-            {!selectedAccount && !showArchive ? (
+            {!selectedAccount && activeView === "upcoming" ? (
               <button className="ghost-button import-button" type="button" onClick={openImportPicker}>
                 Import CSV
               </button>
             ) : null}
-            {!selectedAccount && !showArchive ? (
+            {!selectedAccount && activeView === "upcoming" ? (
               <div className="countdown-card compact-countdown">
                 <p className="section-kicker">Quarter closes</p>
                 <div className="countdown-grid">
@@ -679,16 +683,32 @@ export default function Page() {
               </div>
             ) : null}
             <div className="stat-strip">
-              <StatCard label="Upcoming" value={upcomingCount} />
-              <StatCard label="Follow-up" value={followUpCount} />
+              <StatCard
+                label="Upcoming"
+                value={upcomingCount}
+                onClick={() => {
+                  setSelectedAccount("");
+                  setActiveView("upcoming");
+                }}
+                active={activeView === "upcoming" && !selectedAccount}
+              />
+              <StatCard
+                label="Follow-up"
+                value={followUpCount}
+                onClick={() => {
+                  setSelectedAccount("");
+                  setActiveView("follow-up");
+                }}
+                active={activeView === "follow-up"}
+              />
               <StatCard
                 label="Archived"
                 value={archivedCount}
                 onClick={() => {
                   setSelectedAccount("");
-                  setShowArchive(true);
+                  setActiveView("archive");
                 }}
-                active={showArchive}
+                active={activeView === "archive"}
               />
             </div>
           </div>
@@ -717,9 +737,9 @@ export default function Page() {
 
         <p className="status-line">{calendarStatus}</p>
         <p className="status-line">{gmailStatus}</p>
-        {!selectedAccount && !showArchive && importStatus ? <p className="status-line">{importStatus}</p> : null}
+        {!selectedAccount && activeView === "upcoming" && importStatus ? <p className="status-line">{importStatus}</p> : null}
 
-        {!selectedAccount && !showArchive ? (
+        {!selectedAccount && activeView === "upcoming" ? (
           <section className="compact-alert">
             <p className="section-kicker">Needs touch</p>
             {staleLeads.length ? (
@@ -797,7 +817,7 @@ export default function Page() {
           </section>
         ) : null}
 
-        {!selectedAccount && !showArchive ? (
+        {!selectedAccount && activeView === "upcoming" ? (
           <section className="dashboard-grid">
             <article className="card compact-card">
               <div className="card-heading">
@@ -927,7 +947,7 @@ export default function Page() {
           </section>
         ) : null}
 
-        {!selectedAccount && showArchive ? (
+        {!selectedAccount && activeView === "archive" ? (
           <section className="card account-focus archive-page">
             <div className="card-heading">
               <div>
@@ -949,6 +969,32 @@ export default function Page() {
                 ))
               ) : (
                 <div className="empty-state">No archived meetings yet.</div>
+              )}
+            </div>
+          </section>
+        ) : null}
+
+        {!selectedAccount && activeView === "follow-up" ? (
+          <section className="card account-focus archive-page">
+            <div className="card-heading">
+              <div>
+                <p className="section-kicker">Follow-up</p>
+                <h2>Needs follow-up</h2>
+              </div>
+            </div>
+
+            <div className="meeting-list">
+              {followUpMeetings.length ? (
+                followUpMeetings.map((meeting) => (
+                  <MeetingEditor
+                    key={`follow-up-${meeting.id}`}
+                    meeting={meeting}
+                    onSave={saveMeeting}
+                    onDelete={handleDelete}
+                  />
+                ))
+              ) : (
+                <div className="empty-state">No meetings need follow-up right now.</div>
               )}
             </div>
           </section>
