@@ -59,7 +59,7 @@ function createEmptyContacts(count = 3) {
 
 const defaultForm = {
   account: "",
-  contacts: createEmptyContacts(),
+  contacts: [createEmptyContact()],
   meetingDate: "",
   meetingTime: "",
   touchpointType: "Meeting" as NonNullable<SheetMeeting["touchpointType"]>,
@@ -158,7 +158,7 @@ function readStoredDraft() {
       ...parsed,
       contacts: parsed.contacts?.length
         ? parsed.contacts.map((contact) => ({ ...createEmptyContact(), ...contact }))
-        : createEmptyContacts()
+        : [createEmptyContact()]
     } as typeof defaultForm;
   } catch {
     return defaultForm;
@@ -377,7 +377,7 @@ export default function Page() {
     setForm((current) => ({
       ...current,
       account,
-      contacts: createEmptyContacts()
+      contacts: [createEmptyContact()]
     }));
   }
 
@@ -418,7 +418,7 @@ export default function Page() {
       ...current,
       contacts:
         current.contacts.length === 1
-          ? createEmptyContacts()
+          ? [createEmptyContact()]
           : current.contacts.filter((_, contactIndex) => contactIndex !== index)
     }));
   }
