@@ -248,6 +248,7 @@ export default function Page() {
     () => accountLeads.find((account) => account.account === form.account)?.leads ?? [],
     [accountLeads, form.account]
   );
+  const isNewClientEntry = !selectedAccountLeads.some((lead) => lead.client === form.client);
   const scheduledMeetings = useMemo(
     () =>
       sortedMeetings.filter(
@@ -357,11 +358,16 @@ export default function Page() {
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const account = form.account.trim();
+    const client = form.client.trim();
+    if (!account || !client) {
+      return;
+    }
 
     const nextMeeting: SheetMeeting = {
-      id: createId(form.account, form.client),
-      account: form.account.trim(),
-      client: form.client.trim(),
+      id: createId(account, client),
+      account,
+      client,
       role: form.role.trim(),
       email: form.email.trim(),
       phone: "",
@@ -842,7 +848,7 @@ export default function Page() {
                 </select>
                 <select
                   required
-                  value={selectedAccountLeads.some((lead) => lead.client === form.client) ? form.client : "__new__"}
+                  value={isNewClientEntry ? "__new__" : form.client}
                   onChange={(event) => handleLeadChange(event.target.value)}
                   disabled={!form.account}
                 >
@@ -852,16 +858,16 @@ export default function Page() {
                       {lead.client}
                     </option>
                   ))}
-                  {form.account ? <option value="__new__">Add new lead</option> : null}
+                  {form.account ? <option value="__new__">Add new client</option> : null}
                 </select>
-                {!selectedAccountLeads.some((lead) => lead.client === form.client) ? (
+                {isNewClientEntry ? (
                   <input
                     required
                     value={form.client}
                     onChange={(event) =>
                       setForm((current) => ({ ...current, client: event.target.value }))
                     }
-                    placeholder="New lead name"
+                    placeholder="Client name"
                   />
                 ) : null}
                 <input
