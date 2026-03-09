@@ -1146,8 +1146,7 @@ function ArchivedMeetingEditor({
                 touchpointType: event.target.value as NonNullable<SheetMeeting["touchpointType"]>
               }))
             }
-          }
-        >
+          >
             <option value="Meeting">Meeting</option>
             <option value="Email outreach">Email outreach</option>
           </select>
