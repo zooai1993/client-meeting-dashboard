@@ -536,6 +536,10 @@ textarea {
   font-weight: 700;
 }
 
+.meeting-attendee + .meeting-attendee {
+  margin-top: 8px;
+}
+
 .meeting-datetime {
   margin: 6px 0 10px;
   font-size: 0.92rem;

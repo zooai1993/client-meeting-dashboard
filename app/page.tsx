@@ -105,6 +105,21 @@ function formatMeetingDate(meeting: SheetMeeting) {
   }).format(getMeetingDate(meeting));
 }
 
+function getMeetingContacts(meeting: SheetMeeting) {
+  if (meeting.contacts?.length) {
+    return meeting.contacts;
+  }
+
+  return [
+    {
+      client: meeting.client,
+      role: meeting.role,
+      email: meeting.email,
+      phone: meeting.phone
+    }
+  ];
+}
+
 function readStoredMeetings() {
   if (typeof window === "undefined") {
     return sheetSeedData;
@@ -249,7 +264,13 @@ export default function Page() {
         meeting.email,
         meeting.role,
         meeting.meetingNotes,
-        meeting.nextSteps
+        meeting.nextSteps,
+        ...getMeetingContacts(meeting).flatMap((contact) => [
+          contact.client,
+          contact.role,
+          contact.email,
+          contact.phone
+        ])
       ]
         .join(" ")
         .toLowerCase()
@@ -419,13 +440,15 @@ export default function Page() {
       return;
     }
 
-    const nextMeetings: SheetMeeting[] = contacts.map((contact) => ({
-      id: createId(account, contact.client),
+    const primaryContact = contacts[0];
+    const nextMeeting: SheetMeeting = {
+      id: createId(account, contacts.map((contact) => contact.client).join("-")),
       account,
-      client: contact.client,
-      role: contact.role,
-      email: contact.email,
-      phone: contact.phone,
+      client: primaryContact.client,
+      role: primaryContact.role,
+      email: primaryContact.email,
+      phone: primaryContact.phone,
+      contacts,
       meetingDate: form.meetingDate,
       meetingTime: form.meetingTime,
       touchpointType: form.touchpointType,
@@ -433,10 +456,10 @@ export default function Page() {
       nextSteps: "",
       status: "Scheduled",
       source: "Sheet"
-    }));
+    };
 
     startTransition(() => {
-      setMeetings((current) => [...current, ...nextMeetings]);
+      setMeetings((current) => [...current, nextMeeting]);
       setForm(defaultForm);
     });
 
@@ -1127,6 +1150,7 @@ function MeetingEditor({
   onDelete: (id: string) => void;
 }) {
   const recentUpdateLinks = getRecentUpdateLinks(meeting);
+  const contacts = getMeetingContacts(meeting);
   const [draft, setDraft] = useState<MeetingDraft>({
     meetingDate: meeting.meetingDate,
     meetingTime: meeting.meetingTime,
@@ -1159,9 +1183,16 @@ function MeetingEditor({
       <div className="meeting-meta">
         <div>
           <p className="meeting-client">{meeting.account}</p>
-          <p className="meeting-contact">{meeting.client}</p>
-          <p className="meeting-notes">{meeting.email || "No email"}</p>
-          <p className="meeting-notes">{meeting.phone || "No phone"}</p>
+          {contacts.map((contact) => (
+            <div key={`${contact.client}-${contact.email}`} className="meeting-attendee">
+              <p className="meeting-contact">{contact.client}</p>
+              <p className="meeting-notes">
+                {[contact.role, contact.email || "No email", contact.phone || "No phone"]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </div>
+          ))}
         </div>
         <span className={`meeting-status ${statusClassName(meeting.status)}`}>{meeting.status}</span>
       </div>
@@ -1258,6 +1289,7 @@ function ArchivedMeetingEditor({
   onDelete: (id: string) => void;
   hasUpcomingFollowUp: boolean;
 }) {
+  const contacts = getMeetingContacts(meeting);
   const [draft, setDraft] = useState<MeetingDraft>({
     meetingDate: meeting.meetingDate,
     meetingTime: meeting.meetingTime,
@@ -1290,7 +1322,7 @@ function ArchivedMeetingEditor({
       <summary className="archived-summary">
         <div>
           <p className="meeting-client">{meeting.account}</p>
-          <p className="meeting-contact">{meeting.client}</p>
+          <p className="meeting-contact">{contacts.map((contact) => contact.client).join(", ")}</p>
           <p className="meeting-datetime archived-datetime">{formatMeetingDate(meeting)}</p>
         </div>
         <div className="archived-summary-meta">
@@ -1394,8 +1426,10 @@ function eventMatchesMeeting(
   );
 
   return (
-    attendeeEmails.has(meeting.email.toLowerCase()) ||
-    haystack.includes(meeting.client.toLowerCase()) ||
+    getMeetingContacts(meeting).some(
+      (contact) =>
+        attendeeEmails.has(contact.email.toLowerCase()) || haystack.includes(contact.client.toLowerCase())
+    ) ||
     haystack.includes(meeting.account.toLowerCase())
   );
 }
@@ -1425,11 +1459,12 @@ function getRecentUpdateLinks(meeting: SheetMeeting) {
     )}`
   });
 
-  if (meeting.client.trim()) {
+  const primaryContact = getMeetingContacts(meeting)[0];
+  if (primaryContact?.client.trim()) {
     links.push({
       label: "Lead update",
       href: `https://www.google.com/search?q=${encodeURIComponent(
-        `${meeting.client} ${meeting.account} after:${afterDate}`
+        `${primaryContact.client} ${meeting.account} after:${afterDate}`
       )}`
     });
   }
@@ -1497,40 +1532,43 @@ function buildAccountLeads(
 
   meetings.forEach((meeting) => {
     const accountKey = resolveAccountName(meeting.account.trim() || "Unknown account", masterIndex, aliasMap);
-    const leadKey = `${accountKey}::${meeting.client.trim().toLowerCase()}`;
     const accountLeads = accountMap.get(accountKey) ?? new Map();
-    const existing = accountLeads.get(leadKey);
     const timestamp = getMeetingDate(meeting).getTime();
+    getMeetingContacts(meeting).forEach((contact) => {
+      const leadKey = `${accountKey}::${contact.client.trim().toLowerCase()}`;
+      const existing = accountLeads.get(leadKey);
 
-    if (!existing) {
-      accountLeads.set(leadKey, {
-        key: leadKey,
-        client: meeting.client,
-        role: meeting.role,
-        email: meeting.email,
-        phone: meeting.phone,
-        meetingCount: 1,
-        latestStatus: meeting.status,
-        latestTouchpointType: meeting.touchpointType ?? "Meeting",
-        latestTouchpointDate: formatTouchpointDate(meeting),
-        latestTimestamp: timestamp,
-        latestTouchpointTimestamp: timestamp
-      });
-      accountMap.set(accountKey, accountLeads);
-      return;
-    }
+      if (!existing) {
+        accountLeads.set(leadKey, {
+          key: leadKey,
+          client: contact.client,
+          role: contact.role,
+          email: contact.email,
+          phone: contact.phone,
+          meetingCount: 1,
+          latestStatus: meeting.status,
+          latestTouchpointType: meeting.touchpointType ?? "Meeting",
+          latestTouchpointDate: formatTouchpointDate(meeting),
+          latestTimestamp: timestamp,
+          latestTouchpointTimestamp: timestamp
+        });
+        return;
+      }
 
-    existing.meetingCount += 1;
-    if (timestamp >= existing.latestTimestamp) {
-      existing.role = meeting.role;
-      existing.email = meeting.email;
-      existing.phone = meeting.phone;
-      existing.latestStatus = meeting.status;
-      existing.latestTouchpointType = meeting.touchpointType ?? "Meeting";
-      existing.latestTouchpointDate = formatTouchpointDate(meeting);
-      existing.latestTimestamp = timestamp;
-      existing.latestTouchpointTimestamp = timestamp;
-    }
+      existing.meetingCount += 1;
+      if (timestamp >= existing.latestTimestamp) {
+        existing.role = contact.role;
+        existing.email = contact.email;
+        existing.phone = contact.phone;
+        existing.latestStatus = meeting.status;
+        existing.latestTouchpointType = meeting.touchpointType ?? "Meeting";
+        existing.latestTouchpointDate = formatTouchpointDate(meeting);
+        existing.latestTimestamp = timestamp;
+        existing.latestTouchpointTimestamp = timestamp;
+      }
+    });
+
+    accountMap.set(accountKey, accountLeads);
   });
 
   accountMap.forEach((leads) => {

@@ -5,6 +5,12 @@ export type SheetMeeting = {
   role: string;
   email: string;
   phone: string;
+  contacts?: Array<{
+    client: string;
+    role: string;
+    email: string;
+    phone: string;
+  }>;
   meetingDate: string;
   meetingTime: string;
   touchpointType?: "Meeting" | "Email outreach";
