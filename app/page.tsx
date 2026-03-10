@@ -1612,7 +1612,10 @@ function buildAccountLeads(
     const accountLeads = accountMap.get(accountKey) ?? new Map();
     const timestamp = getMeetingDate(meeting).getTime();
     getMeetingContacts(meeting).forEach((contact) => {
-      const leadKey = `${accountKey}::${contact.client.trim().toLowerCase()}`;
+      const leadIdentity = contact.email.trim()
+        ? contact.email.trim().toLowerCase()
+        : normalizeClientName(contact.client);
+      const leadKey = `${accountKey}::${leadIdentity}`;
       const existing = accountLeads.get(leadKey);
 
       if (!existing) {
@@ -1687,6 +1690,13 @@ function normalizeAccountName(value: string) {
     .toLowerCase()
     .replace(/^the\s+/, "")
     .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function normalizeClientName(value: string) {
+  return value
+    .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
