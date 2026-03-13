@@ -1555,11 +1555,14 @@ function getRecentUpdateLinks(meeting: SheetMeeting) {
 }
 
 function isArchivedMeeting(meeting: SheetMeeting, now: Date) {
-  const baseTime = getMeetingDate(meeting).getTime();
-  const archiveCutoff =
-    meeting.status === "Needs follow-up"
-      ? new Date(baseTime + 3 * 24 * 60 * 60 * 1000)
-      : new Date(baseTime + 60 * 60 * 1000);
+  if (meeting.status === "Needs follow-up") {
+    const archiveCutoff = new Date(getMeetingDate(meeting));
+    archiveCutoff.setHours(23, 59, 59, 999);
+    archiveCutoff.setDate(archiveCutoff.getDate() + 3);
+    return now > archiveCutoff;
+  }
+
+  const archiveCutoff = new Date(getMeetingDate(meeting).getTime() + 60 * 60 * 1000);
   return archiveCutoff < now;
 }
 
