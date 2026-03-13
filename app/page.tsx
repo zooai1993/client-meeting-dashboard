@@ -1555,8 +1555,12 @@ function getRecentUpdateLinks(meeting: SheetMeeting) {
 }
 
 function isArchivedMeeting(meeting: SheetMeeting, now: Date) {
-  const archiveCutoff = new Date(getMeetingDate(meeting).getTime() + 60 * 60 * 1000);
-  return archiveCutoff < now && meeting.status !== "Needs follow-up";
+  const baseTime = getMeetingDate(meeting).getTime();
+  const archiveCutoff =
+    meeting.status === "Needs follow-up"
+      ? new Date(baseTime + 3 * 24 * 60 * 60 * 1000)
+      : new Date(baseTime + 60 * 60 * 1000);
+  return archiveCutoff < now;
 }
 
 function isInNextSevenDays(meeting: SheetMeeting, now: Date) {
@@ -1615,12 +1619,28 @@ function buildAccountLeads(
       const leadIdentity = contact.email.trim()
         ? contact.email.trim().toLowerCase()
         : normalizeClientName(contact.client);
-      const leadKey = `${accountKey}::${leadIdentity}`;
-      const existing = accountLeads.get(leadKey);
+      const directLeadKey = `${accountKey}::${leadIdentity}`;
+      const matchingLeadKey =
+        [...accountLeads.keys()].find((key) => {
+          const existing = accountLeads.get(key);
+          if (!existing) {
+            return false;
+          }
+
+          const existingIdentity = existing.email.trim()
+            ? existing.email.trim().toLowerCase()
+            : normalizeClientName(existing.client);
+
+          return (
+            existingIdentity === leadIdentity ||
+            areLikelySameClient(existing.client, contact.client)
+          );
+        }) ?? directLeadKey;
+      const existing = accountLeads.get(matchingLeadKey);
 
       if (!existing) {
-        accountLeads.set(leadKey, {
-          key: leadKey,
+        accountLeads.set(matchingLeadKey, {
+          key: matchingLeadKey,
           client: contact.client,
           role: contact.role,
           email: contact.email,
@@ -1637,9 +1657,11 @@ function buildAccountLeads(
 
       existing.meetingCount += 1;
       if (timestamp >= existing.latestTimestamp) {
+        existing.client =
+          contact.client.length > existing.client.length ? contact.client : existing.client;
         existing.role = contact.role;
-        existing.email = contact.email;
-        existing.phone = contact.phone;
+        existing.email = contact.email || existing.email;
+        existing.phone = contact.phone || existing.phone;
         existing.latestStatus = meeting.status;
         existing.latestTouchpointType = meeting.touchpointType ?? "Meeting";
         existing.latestTouchpointDate = formatTouchpointDate(meeting);
@@ -1699,6 +1721,25 @@ function normalizeClientName(value: string) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
+}
+
+function areLikelySameClient(left: string, right: string) {
+  const leftParts = normalizeClientName(left).split(" ").filter(Boolean);
+  const rightParts = normalizeClientName(right).split(" ").filter(Boolean);
+
+  if (!leftParts.length || !rightParts.length) {
+    return false;
+  }
+
+  const leftLast = leftParts[leftParts.length - 1];
+  const rightLast = rightParts[rightParts.length - 1];
+  const leftFirst = leftParts[0];
+  const rightFirst = rightParts[0];
+
+  return (
+    leftLast === rightLast &&
+    (leftFirst.startsWith(rightFirst) || rightFirst.startsWith(leftFirst))
+  );
 }
 
 function parseCsv(text: string) {
